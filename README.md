@@ -10,7 +10,7 @@ Changes by Shafayat Shawqi
   to the frame-dragging velocity of spacetime caused by the rigidly rotating baryonic fluid.
 - Fermionic DM pressure and energy density is calculated with user provided dark matter
   particle mass and self-interaction strength.
-- Total mass within the baryonic radius is calculated using the global definition.
+- Total mass within the baryonic radius is calculated using the global definition, along with dark cloud mass.
 
 run make,
 then 
