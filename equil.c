@@ -1920,20 +1920,8 @@ void TOV_r(
     lambda_gp[1]=0.0;
     e_d_gp[1] = e_at_p(p_center,p_surface, log_e_tab, log_p_tab, n_tab, &n_nearest, eos_type, Gamma_P);
     e_d_gpDM[1] = e_at_p_DM(p_centerDM,p_surfaceDM, eos_typeDM, m_chi, y_chi);
-    
-    
-    //    FILE *out_file = fopen("/Users/Tanjih/Documents/MSc-PhD_Thesis/Codes/non-rotating_DANS-selflensing_v3/DANS_RNS_r.txt", "w"); // write only
-    
-    //  // test for files not existing.
-    //  if (out_file == NULL)
-    //    {
-    //      printf("Error! Could not open file\n");
-    //      exit(-1); // must include stdlib.h
-    //    }
-    
     p_d_gp[1] =p;
     p_d_gpDM[1] = pDM;
-    
     enthalpy_gp[1] = h_at_p(p_center,p_surface, log_h_tab, log_p_tab, n_tab, &n_nearest);
     enthalpy_gpDM[1] = h_at_p_DM(p_centerDM,p_surfaceDM, eos_typeDM, m_chi, y_chi);
     
