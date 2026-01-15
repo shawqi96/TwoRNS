@@ -17,10 +17,10 @@ then
 ./trns -e e_cBM -c e_cDM -b eosBM -d f -m mchi -y selfint -r r_ratio
 
 Comments:
+- The main() function is located in trns.c
 - e_cBM, e_cDM in MeV/fm^3
 - eosBM is the BM EOS file name
-- 'f' means fermionic DM
+- 'f' means fermionic DM (bosonic DM has not been implemented in the current version)
 - mchi is the DM particle mass in MeV
 - y is the DM self-interaction strength which is unitless
 - r_ratio is the ratio of the polar baryonic radius to the equatorial baryonic radius (0, 1]
-
