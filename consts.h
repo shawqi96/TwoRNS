@@ -23,8 +23,8 @@
 #define MB 1.66e-24                     /* baryon mass */
 #define RMIN 0.004*1.0e5/sqrt(KAPPA)    /* use approximate TOV equations when
                                            computing spherical star and r<RMIN */
-#define X_D_MIN 0.0                     /* minimum possible value of x */
-#define X_D_MAX 1.0e6                   /* maximum value of x */
+#define X_MINDM 0.0                     /* minimum possible value of x */
+#define X_MAXDM 1.0e6                   /* maximum value of x */
 #define UNUSED (-1.11e30)               /* Used in the Ridder zero-finder */
 #ifndef PI
 #define PI 3.141592653589793238462643   /* what else */
