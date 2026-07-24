@@ -36,13 +36,6 @@
 #include "equil.h"
 #include <stdbool.h>
 
-//#define C 2.9979e10                  /* speed of light in vacuum */
-//#define G 6.6732e-8                  /* gravitational constant */ 
-//#define KAPPA 1.346790806509621e+13  /* square of length scale = 1e-15*C*C/G */
-//#define KSCALE 1.112668301525780e-36 /* KAPPA*G/(C*C*C*C) */  
-//#define MSUN 1.987e33                /* Mass of Sun */
-//#define PI 3.1415926535  
-//#define Out_cond 4
 /*******************************************************************/
 /* Create computational grid.                                      */
 /* Points in the mu-direction are stored in the array mu[i].       */
@@ -143,7 +136,7 @@ void load_eos( char eos_file[],
 /*************************************************************************/
 /* DM EOS.                                                        */
 /*************************************************************************/
-double epsilon_D_EOS(char eos_typeDM[1],
+double epsilon_D_EOS(char eos_typeDM[80],
                      double m_chi,
                      double y_chi,
                      double x_D)
@@ -151,7 +144,7 @@ double epsilon_D_EOS(char eos_typeDM[1],
     return (pow(m_chi, 4.0)/(pow(HBAR, 3.0)*pow(PI, 2.0)))*((1.0/8.0)*((2.0*pow(x_D, 3.0) + x_D)*sqrt(1.0 + pow(x_D, 2.0)) - asinh(x_D)) + pow(y_chi, 2.0)*pow(x_D, 6.0)/(9.0*pow(PI, 2.0)));
 }
 
-double P_D_EOS(char eos_typeDM[1],
+double P_D_EOS(char eos_typeDM[80],
                double m_chi,
                double y_chi,
                double x_D)
@@ -159,7 +152,7 @@ double P_D_EOS(char eos_typeDM[1],
     return (pow(m_chi, 4.0)/(3.0*pow(HBAR, 3.0)*pow(PI, 2.0)))*((1.0/8.0)*((2.0*pow(x_D, 3.0) - 3.0*x_D)*sqrt(1.0 + pow(x_D, 2.0)) + 3.0*asinh(x_D)) + pow(y_chi, 2.0)*pow(x_D, 6.0)/(3.0*pow(PI, 2.0)));
 }
 
-double h_D_EOS(char eos_typeDM[1],
+double h_D_EOS(char eos_typeDM[80],
                double m_chi,
                double y_chi,
                double x_D)
@@ -199,23 +192,24 @@ double e_at_p(double pp,
 
 /*C*/
 /*******************************************************************/
-double e_at_p_DM(double pp,
+double x_at_p_DM(double pp,
                  double pp_surface,
-                 char eos_typeDM[1],
+                 char eos_typeDM[80],
                  double m_chi,
-                 double y_chi)
+                 double y_chi,
+                 double x_maxDM)
 {
     if(pp<pp_surface){
         return 0;
     }else{
-        double int_end = X_D_MAX;
-        double int_st = X_D_MIN;
-        double root = int_st;
+        double int_end = x_maxDM;
+        double int_st = X_MINDM;
+        double x = int_st;
         
         double mid_pt = (int_end + int_st) / 2;
         double mid_pt_old = mid_pt;
           
-        while (fabs (root - mid_pt_old) / mid_pt_old >= 1.0e-15)
+        while (fabs (x - mid_pt_old) / mid_pt_old >= 1.0e-15)
         {
             mid_pt_old = mid_pt;
             // chcck initial num * mid_pt is less than 0
@@ -229,10 +223,39 @@ double e_at_p_DM(double pp,
             }
             
             mid_pt = (int_end + int_st) / 2;
-            root = mid_pt;
+            x = mid_pt;
         }
         
-        return epsilon_D_EOS(eos_typeDM, m_chi, y_chi, root);
+        return x;
+    }
+}
+
+/*C*/
+/*******************************************************************/
+double e_at_p_DM(double ppDM,
+                 double pp_surfaceDM,
+                 char eos_typeDM[80],
+                 double m_chi,
+                 double y_chi,
+                 double x_maxDM,
+                 double log_p_tabDM[2001],
+                 double log_e_tabDM[2001],
+                 int    n_tabDM,
+                 int    *n_nearest_ptDM)
+{
+    if(ppDM<pp_surfaceDM){
+        return 0;
+    }else{
+        if(strcmp(eos_typeDM, "b") == 0)
+        {
+            return 3.0*ppDM + 2.0*pow(m_chi, 2.0)*sqrt(ppDM/(pow(HBAR, 3.0)*y_chi));
+        } else if(strcmp(eos_typeDM, "f") == 0)
+        {
+            return epsilon_D_EOS(eos_typeDM, m_chi, y_chi, x_at_p_DM(ppDM, pp_surfaceDM, eos_typeDM, m_chi, y_chi, x_maxDM));
+        } else
+        {
+            return pow(10.0,interp(log_p_tabDM,log_e_tabDM,n_tabDM,log10(ppDM), n_nearest_ptDM));
+        }
     }
 }
 
@@ -255,40 +278,70 @@ double e_at_h(double hh,
 
 /*C*/
 /*******************************************************************/
-double e_at_h_DM(double hh,
+double x_at_h_DM(double hh,
                  double hh_surface,
-                 char eos_typeDM[1],
+                 char eos_typeDM[80],
                  double m_chi,
-                 double y_chi)
+                 double y_chi,
+                 double x_maxDM)
 {
- if(hh<hh_surface){
+    if(hh<hh_surface){
+        return 0;
+    }else{
+        double int_end = x_maxDM;
+        double int_st = X_MINDM;
+        double x = int_st;
+        
+        double mid_pt = (int_end + int_st) / 2;
+        double mid_pt_old = mid_pt;
+          
+        while (fabs (x - mid_pt_old) / mid_pt_old >= 1.0e-15)
+        {
+            mid_pt_old = mid_pt;
+            // chcck initial num * mid_pt is less than 0
+            if ( (h_D_EOS(eos_typeDM, m_chi, y_chi, int_st) - hh) * (h_D_EOS(eos_typeDM, m_chi, y_chi, mid_pt) - hh) < 0)
+            {
+                int_end = mid_pt; // assign the mid_pt to int_end
+            }
+            else
+            {
+                int_st = mid_pt; // else it assign the mid_pt to int_st
+            }
+            
+            mid_pt = (int_end + int_st) / 2;
+            x = mid_pt;
+        }
+        
+        return x;
+    }
+}
+
+/*C*/
+/*******************************************************************/
+double e_at_h_DM(double hhDM,
+                 double hh_surfaceDM,
+                 char eos_typeDM[80],
+                 double m_chi,
+                 double y_chi,
+                 double x_maxDM,
+                 double log_e_tabDM[2001],
+                 double log_h_tabDM[2001],
+                 int    n_tabDM,
+                 int    *n_nearest_ptDM)
+{
+ if(hhDM<hh_surfaceDM){
   return 0;
  }else{
-     double int_end = X_D_MAX;
-     double int_st = X_D_MIN;
-     double root = int_st;
-     
-     double mid_pt = (int_end + int_st) / 2;
-     double mid_pt_old = mid_pt;
-       
-     while (fabs (root - mid_pt_old) / mid_pt_old >= 1.0e-15)
+     if(strcmp(eos_typeDM, "b") == 0)
      {
-         mid_pt_old = mid_pt;
-         // chcck initial num * mid_pt is less than 0
-         if ( (h_D_EOS(eos_typeDM, m_chi, y_chi, int_st) - hh) * (h_D_EOS(eos_typeDM, m_chi, y_chi, mid_pt) - hh) < 0)
-         {
-             int_end = mid_pt; // assign the mid_pt to int_end
-         }
-         else
-         {
-             int_st = mid_pt; // else it assign the mid_pt to int_st
-         }
-           
-         mid_pt = (int_end + int_st) / 2;
-         root = mid_pt;
+         return (pow(m_chi, 4.0)/(4.0*pow(HBAR, 3.0)*y_chi))*(3.0*exp(4.0*hhDM) - 2.0*exp(2.0*hhDM) - 1.0);
+     } else if(strcmp(eos_typeDM, "f") == 0)
+     {
+         return epsilon_D_EOS(eos_typeDM, m_chi, y_chi, x_at_h_DM(hhDM, hh_surfaceDM, eos_typeDM, m_chi, y_chi, x_maxDM));
+     } else
+     {
+         return pow(10.0,interp(log_h_tabDM,log_e_tabDM,n_tabDM,log10(hhDM), n_nearest_ptDM));
      }
-     
-     return epsilon_D_EOS(eos_typeDM, m_chi, y_chi, root);
  }
 }
 
@@ -306,44 +359,74 @@ double p_at_e(double ee,
  }else{
  return pow(10.0,interp(log_e_tab,log_p_tab,n_tab,log10(ee), n_nearest_pt));
  }
-} 
+}
 
 /*C*/
 /*******************************************************************/
-double p_at_e_DM(double ee,
-                 double ee_surface,
-                 char eos_typeDM[1],
+double x_at_e_DM(double eeDM,
+                 double ee_surfaceDM,
+                 char eos_typeDM[80],
                  double m_chi,
-                 double y_chi)
+                 double y_chi,
+                 double x_maxDM)
 {
- if(ee<ee_surface){
+    if(eeDM<ee_surfaceDM){
+        return 0;
+    }else{
+        double int_end = x_maxDM;
+        double int_st = X_MINDM;
+        double x = int_st;
+        
+        double mid_pt = (int_end + int_st) / 2;
+        double mid_pt_old = mid_pt;
+          
+        while (fabs (x - mid_pt_old) / mid_pt_old >= 1.0e-15)
+        {
+            mid_pt_old = mid_pt;
+            // chcck initial num * mid_pt is less than 0
+            if ( (epsilon_D_EOS(eos_typeDM, m_chi, y_chi, int_st) - eeDM) * (epsilon_D_EOS(eos_typeDM, m_chi, y_chi, mid_pt) - eeDM) < 0)
+            {
+                int_end = mid_pt; // assign the mid_pt to int_end
+            }
+            else
+            {
+                int_st = mid_pt; // else it assign the mid_pt to int_st
+            }
+            
+            mid_pt = (int_end + int_st) / 2;
+            x = mid_pt;
+        }
+        
+        return x;
+    }
+}
+
+/*C*/
+/*******************************************************************/
+double p_at_e_DM(double eeDM,
+                 double ee_surfaceDM,
+                 char eos_typeDM[80],
+                 double m_chi,
+                 double y_chi,
+                 double x_maxDM,
+                 double log_p_tabDM[2001],
+                 double log_e_tabDM[2001],
+                 int    n_tabDM,
+                 int    *n_nearest_ptDM)
+{
+ if(eeDM<ee_surfaceDM){
   return 0;
  }else{
-     double int_end = X_D_MAX;
-     double int_st = X_D_MIN;
-     double root = int_st;
-     
-     double mid_pt = (int_end + int_st) / 2;
-     double mid_pt_old = mid_pt;
-       
-     while (fabs (root - mid_pt_old) / mid_pt_old >= 1.0e-15)
+     if(strcmp(eos_typeDM, "b") == 0)
      {
-         mid_pt_old = mid_pt;
-         // chcck initial num * mid_pt is less than 0
-         if ( (epsilon_D_EOS(eos_typeDM, m_chi, y_chi, int_st) - ee) * (epsilon_D_EOS(eos_typeDM, m_chi, y_chi, mid_pt) - ee) < 0)
-         {
-             int_end = mid_pt; // assign the mid_pt to int_end
-         }
-         else
-         {
-             int_st = mid_pt; // else it assign the mid_pt to int_st
-         }
-           
-         mid_pt = (int_end + int_st) / 2;
-         root = mid_pt;
+         return (pow(m_chi, 4.0)/(9.0*pow(HBAR, 3.0)*y_chi))*pow(sqrt(1.0 + 3.0*pow(HBAR, 3.0)*y_chi*eeDM/pow(m_chi, 4.0)) - 1.0, 2.0);
+     } else if(strcmp(eos_typeDM, "f") == 0)
+     {
+         return P_D_EOS(eos_typeDM, m_chi, y_chi, x_at_e_DM(eeDM, ee_surfaceDM, eos_typeDM, m_chi, y_chi, x_maxDM));
+     } else
+     {
+         return pow(10.0,interp(log_e_tabDM,log_p_tabDM,n_tabDM,log10(eeDM), n_nearest_ptDM));
      }
-     
-     return P_D_EOS(eos_typeDM, m_chi, y_chi, root);
  }
 }
 
@@ -366,40 +449,30 @@ double p_at_h(double hh,
 
 /*C*/
 /*******************************************************************/
-double p_at_h_DM(double hh,
-                 double hh_surface,
-                 char eos_typeDM[1],
+double p_at_h_DM(double hhDM,
+                 double hh_surfaceDM,
+                 char eos_typeDM[80],
                  double m_chi,
-                 double y_chi)
+                 double y_chi,
+                 double x_maxDM,
+                 double log_p_tabDM[2001],
+                 double log_h_tabDM[2001],
+                 int    n_tabDM,
+                 int    *n_nearest_ptDM)
 {
- if(hh<hh_surface){
+ if(hhDM<hh_surfaceDM){
   return 0;
  }else{
-     double int_end = X_D_MAX;
-     double int_st = X_D_MIN;
-     double root = int_st;
-     
-     double mid_pt = (int_end + int_st) / 2;
-     double mid_pt_old = mid_pt;
-       
-     while (fabs (root - mid_pt_old) / mid_pt_old >= 1.0e-15)
+     if(strcmp(eos_typeDM, "b") == 0)
      {
-         mid_pt_old = mid_pt;
-         // chcck initial num * mid_pt is less than 0
-         if ( (h_D_EOS(eos_typeDM, m_chi, y_chi, int_st) - hh) * (h_D_EOS(eos_typeDM, m_chi, y_chi, mid_pt) - hh) < 0)
-         {
-             int_end = mid_pt; // assign the mid_pt to int_end
-         }
-         else
-         {
-             int_st = mid_pt; // else it assign the mid_pt to int_st
-         }
-           
-         mid_pt = (int_end + int_st) / 2;
-         root = mid_pt;
+         return (pow(m_chi, 4.0)/(4.0*pow(HBAR, 3.0)*y_chi))*pow(exp(2.0*hhDM) - 1.0, 2.0);
+     } else if(strcmp(eos_typeDM, "f") == 0)
+     {
+         return P_D_EOS(eos_typeDM, m_chi, y_chi, x_at_h_DM(hhDM, hh_surfaceDM, eos_typeDM, m_chi, y_chi, x_maxDM));
+     } else
+     {
+         return pow(10.0,interp(log_h_tabDM,log_p_tabDM,n_tabDM,log10(hhDM), n_nearest_ptDM));
      }
-     
-     return P_D_EOS(eos_typeDM, m_chi, y_chi, root);
  }
 }
 
@@ -422,41 +495,59 @@ double h_at_p(double pp,
 
 /*C*/
 /*******************************************************************/
-double h_at_p_DM(double pp,
-                 double pp_surface,
-                 char eos_typeDM[1],
+double h_at_p_DM(double ppDM,
+                 double pp_surfaceDM,
+                 char eos_typeDM[80],
                  double m_chi,
-                 double y_chi)
+                 double y_chi,
+                 double x_maxDM,
+                 double log_h_tabDM[2001],
+                 double log_p_tabDM[2001],
+                 int    n_tabDM,
+                 int    *n_nearest_ptDM)
 {
- if(pp<pp_surface){
+ if(ppDM<pp_surfaceDM){
   return 0;
  }else{
-     double int_end = X_D_MAX;
-     double int_st = X_D_MIN;
-     double root = int_st;
-     
-     double mid_pt = (int_end + int_st) / 2;
-     double mid_pt_old = mid_pt;
-       
-     while (fabs (root - mid_pt_old) / mid_pt_old >= 1.0e-15)
+     if(strcmp(eos_typeDM, "b") == 0)
      {
-         mid_pt_old = mid_pt;
-           
-         // chcck initial num * mid_pt is less than 0
-         if ( (P_D_EOS(eos_typeDM, m_chi, y_chi, int_st) - pp) * (P_D_EOS(eos_typeDM, m_chi, y_chi, mid_pt) - pp) < 0)
-         {
-             int_end = mid_pt; // assign the mid_pt to int_end
-         }
-         else
-         {
-             int_st = mid_pt; // else it assign the mid_pt to int_st
-         }
-           
-         mid_pt = (int_end + int_st) / 2;
-         root = mid_pt;
+         return 0.5*log(1.0 + 2.0*sqrt(pow(HBAR, 3.0)*ppDM*y_chi)/pow(m_chi, 2.0));
+     } else if(strcmp(eos_typeDM, "f") == 0)
+     {
+         return h_D_EOS(eos_typeDM, m_chi, y_chi, x_at_p_DM(ppDM, pp_surfaceDM, eos_typeDM, m_chi, y_chi, x_maxDM));
+     } else
+     {
+         return pow(10.0,interp(log_p_tabDM,log_h_tabDM,n_tabDM,log10(ppDM), n_nearest_ptDM));
      }
+ }
+}
 
-     return h_D_EOS(eos_typeDM, m_chi, y_chi, root);
+/*C*/
+/*******************************************************************/
+double h_at_e_DM(double eeDM,
+                 double ee_surfaceDM,
+                 char eos_typeDM[80],
+                 double m_chi,
+                 double y_chi,
+                 double x_maxDM,
+                 double log_h_tabDM[2001],
+                 double log_e_tabDM[2001],
+                 int    n_tabDM,
+                 int    *n_nearest_ptDM)
+{
+ if(eeDM<ee_surfaceDM){
+  return 0;
+ }else{
+     if(strcmp(eos_typeDM, "b") == 0)
+     {
+         return 0.5*log((1.0/3.0) + 2.0*sqrt(3.0*pow(HBAR, 3.0)*eeDM*y_chi + pow(m_chi, 4.0))/(3.0*pow(m_chi, 2.0)));
+     } else if(strcmp(eos_typeDM, "f") == 0)
+     {
+         return h_D_EOS(eos_typeDM, m_chi, y_chi, x_at_e_DM(eeDM, ee_surfaceDM, eos_typeDM, m_chi, y_chi, x_maxDM));
+     } else
+     {
+         return pow(10.0,interp(log_e_tabDM,log_h_tabDM,n_tabDM,log10(eeDM), n_nearest_ptDM));
+     }
  }
 }
 
@@ -475,32 +566,56 @@ double n0_at_e(double ee,
   return pow(10.0,interp(log_e_tab,log_n0_tab,n_tab,log10(ee), n_nearest_pt));
  }
 }
+
+/*C*/
+/*******************************************************************/
+double n0_at_e_DM(double eeDM,
+                 double ee_surfaceDM,
+                 char eos_typeDM[80],
+                 double m_chi,
+                 double y_chi,
+                  double x_maxDM,
+                  double log_n0_tabDM[2001],
+                  double log_e_tabDM[2001],
+                  double log_h_tabDM[2001],
+                  int    n_tabDM,
+                  int    *n_nearest_ptDM)
+{
+ if(eeDM<ee_surfaceDM){
+  return 0;
+ }else{
+     if(strcmp(eos_typeDM, "b") == 0)
+     {
+         return (pow(m_chi, 3.0)/(pow(HBAR, 3.0)*y_chi))*(exp(3.0*h_at_e_DM(eeDM, ee_surfaceDM, eos_typeDM, m_chi, y_chi, x_maxDM, log_h_tabDM, log_e_tabDM, n_tabDM, n_nearest_ptDM)) - exp(h_at_e_DM(eeDM, ee_surfaceDM, eos_typeDM, m_chi, y_chi, x_maxDM, log_h_tabDM, log_e_tabDM, n_tabDM, n_nearest_ptDM)));
+     } else if(strcmp(eos_typeDM, "f") == 0)
+     {
+         return pow(m_chi*x_at_e_DM(eeDM, ee_surfaceDM, eos_typeDM, m_chi, y_chi, x_maxDM)/HBAR, 3.0)/(3.0*pow(PI, 2.0));
+     } else
+     {
+         return pow(10.0,interp(log_e_tabDM,log_n0_tabDM,n_tabDM,log10(eeDM), n_nearest_ptDM));
+     }
+ }
+}
  
 /*C*/
 /***************************************************************/
 void make_center(
-	       char eos_file[], 
-               double log_e_tab[2001], 
-               double log_p_tab[2001], 
-               double log_h_tab[2001],
-               double log_n0_tab[2001], 
-               int n_tab,                 
-	       char eos_type[],
-	       double Gamma_P, 
-	       double e_center,
-	       double *p_center, 
-	       double *h_center,
-	       double e_surface,
-	       double p_surface)
-
+                 char eos_file[],
+                 double log_e_tab[2001],
+                 double log_p_tab[2001],
+                 double log_h_tab[2001],
+                 double log_n0_tab[2001],
+                 int n_tab,
+                 char eos_type[],
+                 double Gamma_P,
+                 double e_center,
+                 double *p_center,
+                 double *h_center,
+                 double e_surface,
+                 double p_surface)
 {
 
- int n_nearest;
-
- double rho0_center;
-
- n_nearest=n_tab/2; 
-
+ int n_nearest = n_tab/2;
 
    (*p_center) = p_at_e( e_center, e_surface, log_p_tab, log_e_tab, n_tab, &n_nearest);
    (*h_center) = h_at_p( (*p_center), p_surface, log_h_tab, log_p_tab, n_tab, &n_nearest);
@@ -510,80 +625,103 @@ void make_center(
 /*C*/
 /***************************************************************/
 void make_centerDM(
-           char eos_typeDM[1],
-           double m_chi,
-           double y_chi,
-           double e_centerDM,
-           double *p_centerDM,
-           double *h_centerDM,
-           double e_surfaceDM,
-           double p_surfaceDM)
-
+                   char eos_typeDM[80],
+                   double m_chi,
+                   double y_chi,
+                           double log_e_tabDM[2001],
+                           double log_p_tabDM[2001],
+                           double log_h_tabDM[2001],
+                           double log_n0_tabDM[2001],
+                           int n_tabDM,
+                       double Gamma_PDM,
+                   double e_centerDM,
+                   double *p_centerDM,
+                   double *h_centerDM,
+                           double *x_centerDM,
+                   double e_surfaceDM,
+                   double p_surfaceDM)
 {
+    if(strcmp(eos_typeDM, "f") == 0)
+    {
+        (*x_centerDM) = x_at_e_DM( e_centerDM, e_surfaceDM, eos_typeDM, m_chi, y_chi, X_MAXDM);
+    }
     
-   (*p_centerDM) = p_at_e_DM( e_centerDM, e_surfaceDM, eos_typeDM, m_chi, y_chi);
-   (*h_centerDM) = h_at_p_DM( (*p_centerDM), p_surfaceDM, eos_typeDM, m_chi, y_chi);
-
+    int n_nearestDM = n_tabDM/2;
+   
+    (*p_centerDM) = p_at_e_DM( e_centerDM, e_surfaceDM, eos_typeDM, m_chi, y_chi, (*x_centerDM), log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
+    (*h_centerDM) = h_at_p_DM( (*p_centerDM), p_surfaceDM, eos_typeDM, m_chi, y_chi, (*x_centerDM), log_h_tabDM, log_p_tabDM, n_tabDM, &n_nearestDM);
 }
 
 /*C*/
 /***********************************************************************/
 /* Computes the gravitational mass, equatorial radius, angular momentum
- *	of the star
- * 	and the velocity of co- and counter-rotating particles      
- *	with respect to a ZAMO                                         */
+ * of the star
+ * and the velocity of co- and counter-rotating particles
+ * with respect to a ZAMO                                         */
 /***********************************************************************/
 void mass_radius(
-		 double s_gp[SDIV+1],
-		 double mu[MDIV+1],
-		 double log_e_tab[2001], 
-		 double log_p_tab[2001], 
-		 double log_h_tab[2001],
-		 double log_n0_tab[2001], 
-		 int n_tab,                 
-		 char eos_type[],
-		 double Gamma_P,
-		 char eos_typeDM[1],
-         double m_chi,
-         double y_chi,
-		 double **rho,
-		 double **gama,
-		 double **alpha,
-		 double **omega, //20
-		 double **energy,
-		 double **pressure,
-		 double **enthalpy,
-		 double **velocity_sq,
-		 double **energyDM,
-		 double **pressureDM,
-		 double **enthalpyDM,
-		 double **velocity_sqDM,
+                 double s_gp[SDIV+1],
+                 double mu[MDIV+1],
+                 double log_e_tab[2001],
+                 double log_p_tab[2001],
+                 double log_h_tab[2001],
+                 double log_n0_tab[2001],
+                 int n_tab,
+                 char eos_type[],
+                 double Gamma_P,
+                 char eos_typeDM[80],
+                 double m_chi,
+                 double y_chi,
+                 double log_e_tabDM[2001],
+                 double log_p_tabDM[2001],
+                 double log_h_tabDM[2001],
+                 double log_n0_tabDM[2001],
+                 int n_tabDM,
+                 double Gamma_PDM,
+                 double **rho,
+                 double **gama,
+                 double **alpha,
+                 double **omega, //20
+                 double **energy,
+                 double **pressure,
+                 double **enthalpy,
+                 double **velocity_sq,
+                 double **energyDM,
+                 double **pressureDM,
+                 double **enthalpyDM,
+                 double **velocity_sqDM,
                  double **Omega_hDM,
                  double r_ratio,
                  double r_ratioDM, //30
                  double *Ratio_sch,
                  double e_center,
                  double e_centerDM,
-		 double e_surface,
-		 double e_surfaceDM,
+                 double x_centerDM,
+                 double e_surface,
+                 double e_surfaceDM,
                  double r_e,
                  double r_eDM,
                  double Omega,
                  double OmegaDM,
                  double *Mass,
-		 double *Mass_0,
-		 double *ang_mom,
+                 double *Mass_0,
+                 double *ang_mom,
                  double *R_e, //40
-                 double *MassDM, 
-		 double *Mass_0DM,
-		 double *ang_momDM,
+                 double *MassDM,
+                 double *Mass_0DM,
+                 double *ang_momDM,
                  double *R_eDM,
-		 double *v_plus,
-		 double *v_minus,
-		 double *Omega_K,
-		 double *Vp,
-		 double *Mp) //49
-
+                 double *v_plus,
+                 double *v_minus,
+                 double *Omega_K,
+                 double *Vp,
+                 double *Mp,
+                 double *MpDM,
+                 double *Mp2,
+                 double *Mp2DM,
+                 double *Zp,
+                 double *Zf,
+                 double *Zb,double *mass_quadrupole,double *B0,double *I, double *IDM) //49
 {
 
 
@@ -595,9 +733,9 @@ void mass_radius(
 int index;
 
  
- double   
+ double
    **rho_0, /*rest mass density*/
-   **velocity,
+   **velocity,**rho_0DM,
    gama_equator,              /* gama at equator */
    rho_equator,
     gama_pole,
@@ -615,31 +753,38 @@ int index;
    sqrt_v,
    D_m[SDIV+1],               /* int. quantity for M */
     D_mRB[SDIV+1],               /* int. quantity for M */
+    D_mp2DM[SDIV+1],
+    D_mp2[SDIV+1],
+    D_mpDM[SDIV+1],
+    D_B0[SDIV+1],
    D_m_0[SDIV+1],             /* int. quantity for M_0 */
    D_J[SDIV+1],               /* int. quantity for J */
    D_mDM[SDIV+1],               /* int. quantity for M */
     D_mDMRB[SDIV+1],               /* int. quantity for M */
    D_m_0DM[SDIV+1],             /* int. quantity for M_0 */
    D_JDM[SDIV+1],               /* int. quantity for J */
+    D_IDM[SDIV+1],
+    D_I[SDIV+1],
     D_s[MDIV+1],               /* int. quantity for M */
     D_sDM[MDIV+1],               /* int. quantity for M */
    s_e,
-   s_eDM,                 
+   s_eDM,
    d_o_e[SDIV+1],
    d_g_e[SDIV+1],
    d_r_e[SDIV+1],
    d_v_e[SDIV+1],
    doe,
-   dge, 
+   dge,
    dre,
    dve,
-   vek, 
-   ratio_old,ratio_oldDM,    
-   gama_mu_0[SDIV+1],                   
-   rho_mu_0[SDIV+1], 
-   gama_mu_1[SDIV+1],                   
-   rho_mu_1[SDIV+1],                      
+   vek,
+   ratio_old,ratio_oldDM,
+   gama_mu_0[SDIV+1],
+   rho_mu_0[SDIV+1],
+   gama_mu_1[SDIV+1],
+   rho_mu_1[SDIV+1],
    omega_mu_0[SDIV+1],
+    v2_mu_0[SDIV+1],
    J,
    JDM,
    r_p,
@@ -648,7 +793,7 @@ int index;
    s_pDM,
    D_vp[SDIV+1],
    D_mp[SDIV+1],
-   Rv,r_eq,r_out;        
+   Rv,r_eq,r_out;
    r_eDM_old=r_eDM;
    /* Circumferential radius */
  
@@ -659,38 +804,42 @@ int index;
         break;
      case 2:
         r_out= ((r_eq<=r_eDM)?r_eq:r_eDM);
-        break; 
+        break;
      case 3:
         r_out= r_eq;//((r_eq>=r_eDM)?r_eq:r_eDM);
         break;
      case 4:
         r_out= r_eDM;//((r_eq<=r_eDM)?r_eq:r_eDM);
-        break;   
+        break;
      case 5:
         r_out= (r_eq+r_eDM)/2.;
-        break;    
+        break;
    }
    
    
    
    r_p= r_ratio*r_eq;                              /* radius at pole */
-   s_p=r_ratio*r_eq/(r_ratio*r_eq+r_out);            
-   s_e=r_eq/(r_eq+r_out);    
+   s_p=r_ratio*r_eq/(r_ratio*r_eq+r_out);
+   s_e=r_eq/(r_eq+r_out);
 
 
-//   s_pDM=r_ratioDM*r_eDM/(r_ratioDM*r_eDM+r_out);            
-   s_eDM=r_eDM/(r_eDM+r_out);            
+//   s_pDM=r_ratioDM*r_eDM/(r_ratioDM*r_eDM+r_out);
+   s_eDM=r_eDM/(r_eDM+r_out);
 
        
    rho_0 = dmatrix(1,SDIV,1,MDIV);
    velocity = dmatrix(1,SDIV,1,MDIV);
     
+    rho_0DM = dmatrix(1,SDIV,1,MDIV);
+    
     int s_pDM_found = 0;
 
-   for(s=1;s<=SDIV;s++) {               
-      gama_mu_0[s]=gama[s][1];                   
-      rho_mu_0[s]=rho[s][1];                                                    
-      gama_mu_1[s]=gama[s][MDIV];                   
+   for(s=1;s<=SDIV;s++) {
+      gama_mu_0[s]=gama[s][1];
+      rho_mu_0[s]=rho[s][1];
+       omega_mu_0[s]=omega[s][1];
+       v2_mu_0[s]=velocity_sq[s][1];
+      gama_mu_1[s]=gama[s][MDIV];
       rho_mu_1[s]=rho[s][MDIV];
        
        if(enthalpyDM[s][MDIV] < 1.0/(C*C) && s_pDM_found == 0)
@@ -715,7 +864,7 @@ int index;
     rho_pole = interp(s_gp, rho_mu_1, SDIV, s_p, &n_nearest);
 
    n_nearestDM= SDIV/2;
-   gama_equatorDM=interp(s_gp,gama_mu_0,SDIV,s_eDM, &n_nearestDM);  
+   gama_equatorDM=interp(s_gp,gama_mu_0,SDIV,s_eDM, &n_nearestDM);
    rho_equatorDM=interp(s_gp,rho_mu_0,SDIV,s_eDM, &n_nearestDM);
     gama_poleDM = interp(s_gp, gama_mu_1, SDIV, s_pDM, &n_nearestDM);
     rho_poleDM = interp(s_gp, rho_mu_1, SDIV, s_pDM, &n_nearestDM);
@@ -743,21 +892,30 @@ int index;
    (*Mass_0DM) = 0.0;
    (*Vp) = 0.0;
    (*Mp) = 0.0;
+    (*Mp2) = 0.0;
+    (*MpDM) = 0.0;
+    (*Mp2DM) = 0.0;
    J=0.0;
    JDM=0.0;
    Rv=0.0;
-   /* CALCULATE THE REST MASS DENSITY */
- if((strcmp(eos_type,"tab")==0) || (strcmp(eos_type,"DM")==0)) {
-   n_nearest=n_tab/2;
-   for(s=1;s<=SDIV;s++)
-      for(m=1;m<=MDIV;m++) {
-           if(energy[s][m]>e_surface)
-             rho_0[s][m]=n0_at_e(energy[s][m],e_surface, log_n0_tab, log_e_tab, n_tab,
-                                             &n_nearest)*MB*KSCALE*SQ(C);
-           else
-             rho_0[s][m]=0.0;
-      }  
- }
+    /* CALCULATE THE REST MASS DENSITY */
+
+    n_nearest=n_tab/2;
+    n_nearestDM=n_tabDM/2;
+    for(s=1;s<=SDIV;s++)
+       for(m=1;m<=MDIV;m++) {
+            if(energy[s][m]>e_surface){
+              rho_0[s][m]=n0_at_e(energy[s][m],e_surface, log_n0_tab, log_e_tab, n_tab,
+                                              &n_nearest)*MB*KSCALE*SQ(C);
+            }else{
+              rho_0[s][m]=0.0;
+              }
+            if(energyDM[s][m]>e_surfaceDM){
+              rho_0DM[s][m]=n0_at_e_DM(energyDM[s][m], e_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_n0_tabDM, log_e_tabDM, log_h_tabDM, n_tabDM, &n_nearestDM)*MB*KSCALE*SQ(C);
+            }else{
+               rho_0DM[s][m]=0.0;
+            }
+       }
 
    for(s=1;s<=SDIV;s++) {
     D_m[s]=0.0;           /* initialize */
@@ -782,7 +940,7 @@ int index;
               (((energy[s][m+1]+pressure[s][m+1])/(1.0-velocity_sq[s][m+1]))*
               (1.0+velocity_sq[s][m+1]+(2.0*s_gp[s]*sqrt(velocity_sq[s][m+1])/
               (1.0-s_gp[s]))*sqrt(1.0-mu[m+1]*mu[m+1])*r_out*omega[s][m+1]*
-              exp(-rho[s][m+1])) + 2.0*pressure[s][m+1]) 
+              exp(-rho[s][m+1])) + 2.0*pressure[s][m+1])
 
             + exp(2.0*alpha[s][m+2]+gama[s][m+2])*
               (((energy[s][m+2]+pressure[s][m+2])/(1.0-velocity_sq[s][m+2]))*
@@ -801,7 +959,7 @@ int index;
               (((energyDM[s][m+1]+pressureDM[s][m+1])/(1.0-velocity_sqDM[s][m+1]))*
               (1.0+velocity_sqDM[s][m+1]+(2.0*s_gp[s]*sqrt(velocity_sqDM[s][m+1])/
               (1.0-s_gp[s]))*sqrt(1.0-mu[m+1]*mu[m+1])*r_out*omega[s][m+1]*
-              exp(-rho[s][m+1])) + 2.0*pressureDM[s][m+1]) 
+              exp(-rho[s][m+1])) + 2.0*pressureDM[s][m+1])
 
             + exp(2.0*alpha[s][m+2]+gama[s][m+2])*
               (((energyDM[s][m+2]+pressureDM[s][m+2])/(1.0-velocity_sqDM[s][m+2]))*
@@ -860,6 +1018,15 @@ int index;
          
              + exp(2.0*alpha[s][m+2]+(gama[s][m+2]
              -rho[s][m+2])/2.0)*rho_0[s][m+2]/sqrt(1.0-velocity_sq[s][m+2]));
+        
+        D_m_0DM[s] += (1.0/(3.0*(MDIV-1)))*( exp(2.0*alpha[s][m]+(gama[s][m]
+                 -rho[s][m])/2.0)*rho_0DM[s][m]/sqrt(1.0-velocity_sqDM[s][m])
+
+                + 4.0* exp(2.0*alpha[s][m+1]+(gama[s][m+1]
+                -rho[s][m+1])/2.0)*rho_0DM[s][m+1]/sqrt(1.0-velocity_sqDM[s][m+1])
+            
+                + exp(2.0*alpha[s][m+2]+(gama[s][m+2]
+                -rho[s][m+2])/2.0)*rho_0DM[s][m+2]/sqrt(1.0-velocity_sqDM[s][m+2]));
 
      D_J[s] += (1.0/(3.0*(MDIV-1)))*( sqrt(1.0-mu[m]*mu[m])*
               exp(2.0*alpha[s][m]+gama[s][m]-rho[s][m])*(energy[s][m]
@@ -898,6 +1065,34 @@ int index;
          
              + exp(2.0*alpha[s][m+2]+(gama[s][m+2]
              -rho[s][m+2])/2.0)*((energy[s][m+2]+pressure[s][m+2])/sqrt(1.0-velocity_sq[s][m+2])));
+        
+        D_mpDM[s] += (1.0/(3.0*(MDIV-1)))*( exp(2.0*alpha[s][m]+(gama[s][m]
+                 -rho[s][m])/2.0)*((energyDM[s][m])/sqrt(1.0-velocity_sqDM[s][m]))
+
+                + 4.0* exp(2.0*alpha[s][m+1]+(gama[s][m+1]
+                -rho[s][m+1])/2.0)*((energyDM[s][m+1])/sqrt(1.0-velocity_sqDM[s][m+1]))
+            
+                + exp(2.0*alpha[s][m+2]+(gama[s][m+2]
+                -rho[s][m+2])/2.0)*((energyDM[s][m+2])/sqrt(1.0-velocity_sqDM[s][m+2])));
+        
+        D_mp2[s] += (1.0/(3.0*(MDIV-1)))*( exp(2.0*alpha[s][m]+(gama[s][m]
+                 -rho[s][m])/2.0)*((energy[s][m]+pressure[s][m])/sqrt(1.0-velocity_sq[s][m]))
+
+                + 4.0* exp(2.0*alpha[s][m+1]+(gama[s][m+1]
+                -rho[s][m+1])/2.0)*((energy[s][m+1]+pressure[s][m+1])/sqrt(1.0-velocity_sq[s][m+1]))
+            
+                + exp(2.0*alpha[s][m+2]+(gama[s][m+2]
+                -rho[s][m+2])/2.0)*((energy[s][m+2]+pressure[s][m+2])/sqrt(1.0-velocity_sq[s][m+2])));
+
+           
+        D_mp2DM[s] += (1.0/(3.0*(MDIV-1)))*( exp(2.0*alpha[s][m]+(gama[s][m]
+                 -rho[s][m])/2.0)*((energyDM[s][m]+pressureDM[s][m])/sqrt(1.0-velocity_sqDM[s][m]))
+
+                + 4.0* exp(2.0*alpha[s][m+1]+(gama[s][m+1]
+                -rho[s][m+1])/2.0)*((energyDM[s][m+1]+pressureDM[s][m+1])/sqrt(1.0-velocity_sqDM[s][m+1]))
+            
+                + exp(2.0*alpha[s][m+2]+(gama[s][m+2]
+                -rho[s][m+2])/2.0)*((energyDM[s][m+2]+pressureDM[s][m+2])/sqrt(1.0-velocity_sqDM[s][m+2])));
 
      if(energy[s][m+1]+pressure[s][m+1]==0){
       D_vp[s]+=0.0;
@@ -912,12 +1107,12 @@ int index;
              + exp(2.0*alpha[s][m+2]+(gama[s][m+2]
              -rho[s][m+2])/2.0)*(1.0/sqrt(1.0-velocity_sq[s][m+2])));
              Rv= s_gp[s]*r_out*sqrt(KAPPA)/((1.-s_gp[s])*100000.);
-    }    
+    }
 
     }
    }
    index = 1;
-    for(s=1;s<=SDIV-2;s+=2) { 
+    for(s=1;s<=SDIV-2;s+=2) {
         //printf("%f %f %f ",log(velocity_sq[s][0]),energy[s][0],omega[s][0]);
      (*Mass) += (SMAX/(3.0*(SDIV-1)))*(pow(sqrt(s_gp[s])/(1.0-s_gp[s]),4.0)*
           D_m[s]+4.0*pow(sqrt(s_gp[s+1])/(1.0-s_gp[s+1]),4.0)*D_m[s+1]
@@ -936,13 +1131,17 @@ int index;
              +pow(sqrt(s_gp[s+2])/(1.0-s_gp[s+2]),4.0)*D_mDMRB[s+2]);
           
      //printf("%d \t %g %g %g\n", index, (SMAX/(3.0*(SDIV-1)))*(pow(sqrt(s_gp[s])/(1.0-s_gp[s]),4.0)*
-      //    D_mDM[s],4.0*pow(sqrt(s_gp[s+1])/(1.0-s_gp[s+1]),4.0)*D_mDM[s+1],pow(sqrt(s_gp[s+2])/(1.0-s_gp[s+2]),4.0)*D_mDM[s+2])); 
+      //    D_mDM[s],4.0*pow(sqrt(s_gp[s+1])/(1.0-s_gp[s+1]),4.0)*D_mDM[s+1],pow(sqrt(s_gp[s+2])/(1.0-s_gp[s+2]),4.0)*D_mDM[s+2]));
 
      //printf("%d \t %g\n", index, (*Mass));      /***************************/
 
      (*Mass_0) += (SMAX/(3.0*(SDIV-1)))*(pow(sqrt(s_gp[s])/(1.0-s_gp[s]),4.0)*
           D_m_0[s]+4.0*pow(sqrt(s_gp[s+1])/(1.0-s_gp[s+1]),4.0)*D_m_0[s+1]
           +pow(sqrt(s_gp[s+2])/(1.0-s_gp[s+2]),4.0)*D_m_0[s+2]);
+        
+        (*Mass_0DM) += (SMAX/(3.0*(SDIV-1)))*(pow(sqrt(s_gp[s])/(1.0-s_gp[s]),4.0)*
+             D_m_0DM[s]+4.0*pow(sqrt(s_gp[s+1])/(1.0-s_gp[s+1]),4.0)*D_m_0DM[s+1]
+             +pow(sqrt(s_gp[s+2])/(1.0-s_gp[s+2]),4.0)*D_m_0DM[s+2]);
  
      J += (SMAX/(3.0*(SDIV-1)))*((pow(s_gp[s],3.0)/pow(1.0-s_gp[s],5.0))*
           D_J[s]+ 4.0*(pow(s_gp[s+1],3.0)/pow(1.0-s_gp[s+1],5.0))*
@@ -957,6 +1156,17 @@ int index;
      (*Mp) += (SMAX/(3.0*(SDIV-1)))*(pow(sqrt(s_gp[s])/(1.0-s_gp[s]),4.0)*
           D_mp[s]+4.0*pow(sqrt(s_gp[s+1])/(1.0-s_gp[s+1]),4.0)*D_mp[s+1]
           +pow(sqrt(s_gp[s+2])/(1.0-s_gp[s+2]),4.0)*D_mp[s+2]);
+        
+        (*MpDM) += (SMAX/(3.0*(SDIV-1)))*(pow(sqrt(s_gp[s])/(1.0-s_gp[s]),4.0)*
+             D_mpDM[s]+4.0*pow(sqrt(s_gp[s+1])/(1.0-s_gp[s+1]),4.0)*D_mpDM[s+1]
+             +pow(sqrt(s_gp[s+2])/(1.0-s_gp[s+2]),4.0)*D_mpDM[s+2]);
+        
+        (*Mp2) += (SMAX/(3.0*(SDIV-1)))*(pow(sqrt(s_gp[s])/(1.0-s_gp[s]),4.0)*
+             D_mp2[s]+4.0*pow(sqrt(s_gp[s+1])/(1.0-s_gp[s+1]),4.0)*D_mp2[s+1]
+             +pow(sqrt(s_gp[s+2])/(1.0-s_gp[s+2]),4.0)*D_mp2[s+2]);
+        (*Mp2DM) += (SMAX/(3.0*(SDIV-1)))*(pow(sqrt(s_gp[s])/(1.0-s_gp[s]),4.0)*
+             D_mp2DM[s]+4.0*pow(sqrt(s_gp[s+1])/(1.0-s_gp[s+1]),4.0)*D_mp2DM[s+1]
+             +pow(sqrt(s_gp[s+2])/(1.0-s_gp[s+2]),4.0)*D_mp2DM[s+2]);
 
      (*Vp) += (SMAX/(3.0*(SDIV-1)))*(pow(sqrt(s_gp[s])/(1.0-s_gp[s]),4.0)*
           D_vp[s]+4.0*pow(sqrt(s_gp[s+1])/(1.0-s_gp[s+1]),4.0)*D_vp[s+1]
@@ -999,18 +1209,18 @@ int index;
        exit(0);
        return;
      }
-    if(r_ratio==1.0) 
-         J=0.0; 
-    else {    
+    if(r_ratio==1.0)
+         J=0.0;
+    else {
           if((strcmp(eos_type,"tab")==0) || (strcmp(eos_type,"poly")==0))
               J *= 4.0*PI*KAPPA*C*C*C*pow(r_out,4.0)/G;
     }
 
     (*ang_mom) = J;
 
-    if(r_ratioDM==1.0) 
-         JDM=0.0; 
-    else {    
+    if(r_ratioDM==1.0)
+         JDM=0.0;
+    else {
           if((strcmp(eos_type,"b")==0) || (strcmp(eos_type,"f")==0))
               JDM *= 4.0*PI*KAPPA*C*C*C*pow(r_out,4.0)/G;
     }
@@ -1018,10 +1228,24 @@ int index;
     (*ang_momDM) = JDM;
 
     //printf(" J = %g \n", J);
+    
+    
+    (*Zp)=exp(-(interp(s_gp,gama_mu_1,SDIV,s_p, &n_nearest)+interp(s_gp,rho_mu_1,SDIV,s_p, &n_nearest))/2)-1;
+    (*Zf)=sqrt((1-sqrt(interp(s_gp,v2_mu_0,SDIV,s_e, &n_nearest)))/(1+sqrt(interp(s_gp,v2_mu_0,SDIV,s_e, &n_nearest))))*exp(-(interp(s_gp,gama_mu_0,SDIV,s_e, &n_nearest)+interp(s_gp,rho_mu_0,SDIV,s_e, &n_nearest))/2)/(1+interp(s_gp,omega_mu_0,SDIV,s_e, &n_nearest)*r_out*exp(-interp(s_gp,rho_mu_0,SDIV,s_e, &n_nearest)))-1;
+    (*Zb)=sqrt((1+sqrt(interp(s_gp,v2_mu_0,SDIV,s_e, &n_nearest)))/(1-sqrt(interp(s_gp,v2_mu_0,SDIV,s_e, &n_nearest))))*exp(-(interp(s_gp,gama_mu_0,SDIV,s_e, &n_nearest)+interp(s_gp,rho_mu_0,SDIV,s_e, &n_nearest))/2)/(1-interp(s_gp,omega_mu_0,SDIV,s_e, &n_nearest)*r_out*exp(-interp(s_gp,rho_mu_0,SDIV,s_e, &n_nearest)))-1;
+     
+
+     double M = (*Mass)+(*MassDM);
+     double b =C*C*C*C/G/G*  (*B0)/M/M;
+     if (r_ratio==1.0){
+       (*mass_quadrupole) =0;
+     }else{
+       (*mass_quadrupole) =(-(*mass_quadrupole)* pow(sqrt(KAPPA),3)* C*C/G- (4.0 / 3.0) * (0.25 + b)*M*M*M* pow(G/C/C,2));
+     }
 
 
   /* Compute the velocities of co-rotating and counter-rotating particles
-	with respect to a ZAMO 	*/
+     with respect to a ZAMO */
 
   for(s=1+(SDIV-1)/2;s<=SDIV;s++) {
     s1= s_gp[s]*(1.0-s_gp[s]);
@@ -1031,7 +1255,7 @@ int index;
     d_rho_s=deriv_s(rho,s,1);
     d_omega_s=deriv_s(omega,s,1);
 
-    sqrt_v= exp(-2.0*rho[s][1])*r_out*r_out*pow(s_gp[s],4.0)*pow(d_omega_s,2.0) 
+    sqrt_v= exp(-2.0*rho[s][1])*r_out*r_out*pow(s_gp[s],4.0)*pow(d_omega_s,2.0)
             + 2.0*s1*(d_gama_s+d_rho_s)+s1*s1*(d_gama_s*d_gama_s-d_rho_s*d_rho_s);
 
     if(sqrt_v>0.0) sqrt_v= sqrt(sqrt_v);
@@ -1049,7 +1273,7 @@ int index;
 
 /* Kepler angular velocity */
 
-   for(s=1;s<=SDIV;s++) { 
+   for(s=1;s<=SDIV;s++) {
      d_o_e[s]=deriv_s(omega,s,1);
      d_g_e[s]=deriv_s(gama,s,1);
      d_r_e[s]=deriv_s(rho,s,1);
@@ -1072,16 +1296,17 @@ int index;
   //  omega_equator = 0.0;
   //else
     omega_equator = interp(s_gp,omega_mu_0,SDIV,0.5, &n_nearest);
-
-
-
-
    (*Omega_K) = (C/sqrt(KAPPA))*(omega_equator+vek*exp(rho_equator)/r_out);
     
-    
-    
-    
-    
+    n_nearest=SDIV/2;
+    doe=interp(s_gp,d_o_e,SDIV,s_eDM, &n_nearest);
+    dge=interp(s_gp,d_g_e,SDIV,s_eDM, &n_nearest);
+    dre=interp(s_gp,d_r_e,SDIV,s_eDM, &n_nearest);
+
+   vek=(doe/(8.0+dge-dre))*r_eDM*exp(-rho_equatorDM) + sqrt(((dge+dre)/(8.0+dge-dre)) + pow((doe/(8.0+dge-dre))*r_eDM*exp(-rho_equatorDM),2.0));
+
+     omega_equator = interp(s_gp,omega_mu_0,SDIV,s_eDM, &n_nearest);
+    double Omega_KDM = (C/sqrt(KAPPA))*(omega_equator+vek*exp(rho_equatorDM)/r_eDM);
     
     
 //    double enthalpy_m[SDIV+1];
@@ -1139,9 +1364,20 @@ int index;
 //        printf("s_RB[%d] = %.12e, %d \n", m, s_RB[m]);
     }
     
+//    printf("s_RB[1] = %.12e \n", s_RB[1]);
+//    printf("RB[1] = %.12e \n", sqrt(KAPPA)*1e-5*r_out*s_RB[1]/(1.0 - s_RB[1]));
+    
+//    printf("s_RB[32] = %.12e \n", s_RB[32]);
+//    printf("RB[32] = %.12e \n", sqrt(KAPPA)*1e-5*exp((gama_RB[32] - rho_RB[32])/2.0)*r_out*s_RB[32]/(1.0 - s_RB[32]));
+//    printf("enthalpy[32] = %.12e \n", interp(s_gp, enthalpyDM_m, SDIV, s_RB[32], &n_nearest));
+//    printf("gama_RB[32] = %.12e \n", s_RB[32]);
+//    printf("s_RB[32] = %.12e \n", s_RB[32]);
+//    printf("s_RB[32] = %.12e \n", s_RB[32]);
+    
 
    free_dmatrix(velocity,1,SDIV,1,MDIV);
    free_dmatrix(rho_0,1,SDIV,1,MDIV);
+    free_dmatrix(rho_0DM,1,SDIV,1,MDIV);
 
               //printf("%.5f\n",Rv);
 
@@ -1220,9 +1456,14 @@ double dm_dr_is_DM(double r_is,
                    double p,
                    double e_center,
                    double p_surface,
-                   char eos_typeDM[1],
+                   char eos_typeDM[80],
                    double m_chi,
-                   double y_chi)
+                   double y_chi,
+                   double x_maxDM,
+                   double log_p_tabDM[2001],
+                   double log_e_tabDM[2001],
+                   int    n_tabDM,
+                   int    *n_nearest_ptDM)
 {
  double dmdr,
         e_d;
@@ -1230,7 +1471,7 @@ double dm_dr_is_DM(double r_is,
  if(p<p_surface)
     e_d=0.0;
  else
-    e_d = e_at_p_DM(p,p_surface, eos_typeDM, m_chi, y_chi);
+    e_d = e_at_p_DM(p,p_surface, eos_typeDM, m_chi, y_chi, x_maxDM, log_p_tabDM, log_e_tabDM, n_tabDM, n_nearest_ptDM);
  
  if(r_is<RMIN)
     dmdr=4.0*PI*e_center*r*r*(1.0+4.0*PI*e_center*r*r/3.0);
@@ -1248,9 +1489,14 @@ double dm_dr_DM(double r_is,
                    double p,
                    double e_center,
                    double p_surface,
-                   char eos_typeDM[1],
+                   char eos_typeDM[80],
                    double m_chi,
-                   double y_chi)
+                   double y_chi,
+                double x_maxDM,
+                double log_p_tabDM[2001],
+                double log_e_tabDM[2001],
+                int    n_tabDM,
+                int    *n_nearest_ptDM)
 {
  double dmdr,
         e_d;
@@ -1258,7 +1504,7 @@ double dm_dr_DM(double r_is,
  if(p<p_surface)
     e_d=0.0;
  else
-    e_d = e_at_p_DM(p,p_surface, eos_typeDM, m_chi, y_chi);
+    e_d = e_at_p_DM(p,p_surface, eos_typeDM, m_chi, y_chi, x_maxDM, log_p_tabDM, log_e_tabDM, n_tabDM, n_nearest_ptDM);
  
  if(r<RMIN)
     dmdr=4.0*PI*e_center*r*r;
@@ -1349,9 +1595,14 @@ double dp_dr_is_DM(double r_is,
                    double e_center,
                    double e_center_other,
                    double p_surface,
-                   char eos_typeDM[1],
+                   char eos_typeDM[80],
                    double m_chi,
-                   double y_chi)
+                   double y_chi,
+                   double x_maxDM,
+                   double log_p_tabDM[2001],
+                   double log_e_tabDM[2001],
+                   int    n_tabDM,
+                   int    *n_nearest_ptDM)
 { double dpdr,
          e_d;
 
@@ -1360,7 +1611,7 @@ double dp_dr_is_DM(double r_is,
    p=0.0;
   }
   else
-   e_d=e_at_p_DM(p,p_surface, eos_typeDM, m_chi, y_chi);
+   e_d=e_at_p_DM(p,p_surface, eos_typeDM, m_chi, y_chi, x_maxDM, log_p_tabDM, log_e_tabDM, n_tabDM, n_nearest_ptDM);
   
   if(r_is<RMIN) dpdr = -4.0*PI*(e_center+p)*(e_center + e_center_other +3.0*(p+p_other))*r*(1.0
                      +4.0*(e_center + e_center_other)*r*r/3.0)/3.0;
@@ -1381,9 +1632,14 @@ double dp_dr_DM(double r_is,
                    double e_center,
                    double e_center_other,
                    double p_surface,
-                   char eos_typeDM[1],
+                   char eos_typeDM[80],
                    double m_chi,
-                   double y_chi)
+                   double y_chi,
+                double x_maxDM,
+                double log_p_tabDM[2001],
+                double log_e_tabDM[2001],
+                int    n_tabDM,
+                int    *n_nearest_ptDM)
 { double dpdr,
          e_d;
 
@@ -1392,7 +1648,7 @@ double dp_dr_DM(double r_is,
    p=0.0;
   }
   else
-   e_d=e_at_p_DM(p,p_surface, eos_typeDM, m_chi, y_chi);
+   e_d=e_at_p_DM(p,p_surface, eos_typeDM, m_chi, y_chi, x_maxDM, log_p_tabDM, log_e_tabDM, n_tabDM, n_nearest_ptDM);
   
   if(r<RMIN) dpdr = -4.0*PI*(e_center+p)*((e_center + e_center_other)/3.0 + p+p_other)*r/(1.0 - 8.0*PI*(e_center + e_center_other)*r*r/3.0);
 
@@ -1461,12 +1717,19 @@ void TOV_enthalpy(
 //               double lambda_gp[RDIV+1],
                   double r_is_gp[],
                   double lambda_gp[],
-               char   eos_typeDM[1],
+               char   eos_typeDM[80],
                double m_chi,
                double y_chi,
+                  double log_e_tabDM[2001],
+                  double log_p_tabDM[2001],
+                  double log_h_tabDM[2001],
+                  double log_n0_tabDM[2001],
+                  int n_tabDM,
+                  double Gamma_PDM,
                double e_centerDM,
                double p_centerDM,
                double enthalpy_centerDM,
+                  double x_centerDM,
                double p_surfaceDM,
                double e_surfaceDM,
                double nu_gp[RDIV+1],
@@ -1525,7 +1788,7 @@ void TOV_enthalpy(
   double enthalpy_min;
   enthalpy_min = 1.0/(C*C);//1e-10;
 //    enthalpy_min = 0.0;
-
+    
   // SMM: Add enthalpy vectors
   // double enthalpy_gp[RDIV+1],
   //enthalpy_gpDM[RDIV+1];
@@ -1558,19 +1821,20 @@ void TOV_enthalpy(
     
     double RBM,RDM,RBMis,RDMis=0.0;
     n_nearest = n_tab/2;
+    n_nearestDM = n_tabDM/2;
 //    r_is_gp[1]=0.0;
     r_gp[1]=0.0;
     m_gp[1]=0.0;
     m_gpDM[1]=0.0;
     lambda_gp[1]=0.0;
     e_d_gp[1] = e_at_p(p_center,p_surface, log_e_tab, log_p_tab, n_tab, &n_nearest, eos_type, Gamma_P);
-    e_d_gpDM[1] = e_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi);
+    e_d_gpDM[1] = e_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
     
     p_d_gp[1] = p;
     p_d_gpDM[1] = pDM;
     
     enthalpy_gp[1] = h_at_p(p_center,p_surface, log_h_tab, log_p_tab, n_tab, &n_nearest);
-    enthalpy_gpDM[1] = h_at_p_DM(p_centerDM,p_surfaceDM, eos_typeDM, m_chi, y_chi);
+    enthalpy_gpDM[1] = h_at_p_DM(p_centerDM,p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_h_tabDM, log_p_tabDM, n_tabDM, &n_nearestDM);
 
     printf("TOV_enthalpy: central enthalpy = %lf  dark central enthalpy = %lf \n", enthalpy_gp[1], enthalpy_gpDM[1]);
 //    if(i_check==1)
@@ -1583,7 +1847,7 @@ void TOV_enthalpy(
  
       e_d = e_at_p(p,p_surface, log_e_tab, log_p_tab, n_tab, &n_nearest, eos_type,
                                                                     Gamma_P);
-      e_dDM = e_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi);
+      e_dDM = e_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
 //     if((i_check<=3) && (r_is>r_is_check) && (i<=RDIV)) {
       r_is_gp[i]=r_is;
       r_gp[i]=sqrt(r2);
@@ -1609,7 +1873,7 @@ void TOV_enthalpy(
       }
 
       enthalpy_gp[i] = h_at_p(p,p_surface, log_h_tab, log_p_tab, n_tab, &n_nearest);
-      enthalpy_gpDM[i] = h_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi);
+      enthalpy_gpDM[i] = h_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_h_tabDM, log_p_tabDM, n_tabDM, &n_nearestDM);
       
 //       if (i < RDIV)
 //      printf("i=%d r_is=%lf enth_B=%lf enth_D=%lf \n", i, r_is_gp[i],enthalpy_gp[i],enthalpy_gpDM[i]);
@@ -1655,35 +1919,35 @@ void TOV_enthalpy(
             }
             
             
-            a2=dr_is_dr(r_is+h*a1/2.0,sqrt(r2+h*b1/2.0),m+h*c1/2.0+mDM+h*c1DM/2.0)*dr2_dh(r2+h*b1/2.0, m+h*c1/2.0+mDM+h*c1DM/2.0, p_at_h(hh + h/2.0,pow(10.0,log_h_tab[1]), log_p_tab, log_h_tab, n_tab, &n_nearest) + p_at_h_DM(hhDM + h/2.0,enthalpy_min, eos_typeDM, m_chi, y_chi))/2.0/sqrt(r2+h*b1/2.0);
-            b2=dr2_dh(r2+h*b1/2.0, m+h*c1/2.0+mDM+h*c1DM/2.0, p_at_h(hh + h/2.0,pow(10.0,log_h_tab[1]), log_p_tab, log_h_tab, n_tab, &n_nearest) + p_at_h_DM(hhDM + h/2.0,enthalpy_min, eos_typeDM, m_chi, y_chi));
+            a2=dr_is_dr(r_is+h*a1/2.0,sqrt(r2+h*b1/2.0),m+h*c1/2.0+mDM+h*c1DM/2.0)*dr2_dh(r2+h*b1/2.0, m+h*c1/2.0+mDM+h*c1DM/2.0, p_at_h(hh + h/2.0,pow(10.0,log_h_tab[1]), log_p_tab, log_h_tab, n_tab, &n_nearest) + p_at_h_DM(hhDM + h/2.0,enthalpy_min, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_h_tabDM, n_tabDM, &n_nearestDM))/2.0/sqrt(r2+h*b1/2.0);
+            b2=dr2_dh(r2+h*b1/2.0, m+h*c1/2.0+mDM+h*c1DM/2.0, p_at_h(hh + h/2.0,pow(10.0,log_h_tab[1]), log_p_tab, log_h_tab, n_tab, &n_nearest) + p_at_h_DM(hhDM + h/2.0,enthalpy_min, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_h_tabDM, n_tabDM, &n_nearestDM));
             
             if(hh+h/2.0>enthalpy_min){
                 c2=dm_dh(r2+h*b1/2.0, m+h*c1/2.0, p_at_h(hh + h/2.0,pow(10.0,log_h_tab[1]), log_p_tab, log_h_tab, n_tab, &n_nearest), e_at_h(hh + h/2.0,pow(10.0,log_h_tab[1]), log_e_tab, log_h_tab, n_tab, &n_nearest));
             }
             if(hhDM+h/2.0>enthalpy_min){
-                c2DM=dm_dh(r2+h*b1/2.0, mDM+h*c1DM/2.0, p_at_h_DM(hhDM + h/2.0,enthalpy_min, eos_typeDM, m_chi, y_chi), e_at_h_DM(hhDM + h/2.0,enthalpy_min, eos_typeDM, m_chi, y_chi));
+                c2DM=dm_dh(r2+h*b1/2.0, mDM+h*c1DM/2.0, p_at_h_DM(hhDM + h/2.0,enthalpy_min, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_h_tabDM, n_tabDM, &n_nearestDM), e_at_h_DM(hhDM + h/2.0,enthalpy_min, eos_typeDM, m_chi, y_chi, x_centerDM, log_e_tabDM, log_h_tabDM, n_tabDM, &n_nearestDM));
             }
             
             
-            a3=dr_is_dr(r_is+h*a2/2.0,sqrt(r2+h*b2/2.0),m+h*c2/2.0+mDM+h*c2DM/2.0)*dr2_dh(r2+h*b2/2.0, m+h*c2/2.0+mDM+h*c2DM/2.0, p_at_h(hh + h/2.0,pow(10.0,log_h_tab[1]), log_p_tab, log_h_tab, n_tab, &n_nearest) + p_at_h_DM(hhDM + h/2.0,enthalpy_min, eos_typeDM, m_chi, y_chi))/2.0/sqrt(r2+h*b2/2.0);
-            b3=dr2_dh(r2+h*b2/2.0, m+h*c2/2.0+mDM+h*c2DM/2.0, p_at_h(hh + h/2.0,pow(10.0,log_h_tab[1]), log_p_tab, log_h_tab, n_tab, &n_nearest) + p_at_h_DM(hhDM + h/2.0,enthalpy_min, eos_typeDM, m_chi, y_chi));
+            a3=dr_is_dr(r_is+h*a2/2.0,sqrt(r2+h*b2/2.0),m+h*c2/2.0+mDM+h*c2DM/2.0)*dr2_dh(r2+h*b2/2.0, m+h*c2/2.0+mDM+h*c2DM/2.0, p_at_h(hh + h/2.0,pow(10.0,log_h_tab[1]), log_p_tab, log_h_tab, n_tab, &n_nearest) + p_at_h_DM(hhDM + h/2.0,enthalpy_min, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_h_tabDM, n_tabDM, &n_nearestDM))/2.0/sqrt(r2+h*b2/2.0);
+            b3=dr2_dh(r2+h*b2/2.0, m+h*c2/2.0+mDM+h*c2DM/2.0, p_at_h(hh + h/2.0,pow(10.0,log_h_tab[1]), log_p_tab, log_h_tab, n_tab, &n_nearest) + p_at_h_DM(hhDM + h/2.0,enthalpy_min, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_h_tabDM, n_tabDM, &n_nearestDM));
             
             if(hh+h/2.0>enthalpy_min){
                 c3=dm_dh(r2+h*b2/2.0, m+h*c2/2.0, p_at_h(hh + h/2.0,pow(10.0,log_h_tab[1]), log_p_tab, log_h_tab, n_tab, &n_nearest), e_at_h(hh + h/2.0,pow(10.0,log_h_tab[1]), log_e_tab, log_h_tab, n_tab, &n_nearest));
             }
             if(hhDM+h/2.0>enthalpy_min){
-                c3DM=dm_dh(r2+h*b2/2.0, mDM+h*c2DM/2.0, p_at_h_DM(hhDM + h/2.0,enthalpy_min, eos_typeDM, m_chi, y_chi), e_at_h_DM(hhDM + h/2.0,enthalpy_min, eos_typeDM, m_chi, y_chi));
+                c3DM=dm_dh(r2+h*b2/2.0, mDM+h*c2DM/2.0, p_at_h_DM(hhDM + h/2.0,enthalpy_min, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_h_tabDM, n_tabDM, &n_nearestDM), e_at_h_DM(hhDM + h/2.0,enthalpy_min, eos_typeDM, m_chi, y_chi, x_centerDM, log_e_tabDM, log_h_tabDM, n_tabDM, &n_nearestDM));
             }
             
-            a4=dr_is_dr(r_is+h*a3, sqrt(r2+h*b3), m + h*c3 + mDM + h*c3DM)*dr2_dh(r2 + h*b3, m + h*c3 + mDM + h*c3DM, p_at_h(hh + h,pow(10.0,log_h_tab[1]), log_p_tab, log_h_tab, n_tab, &n_nearest) + p_at_h_DM(hhDM + h,enthalpy_min, eos_typeDM, m_chi, y_chi))/2.0/sqrt(r2+h*b3);
-            b4=dr2_dh(r2+h*b3, m+h*c3+mDM+h*c3DM, p_at_h(hh + h,pow(10.0,log_h_tab[1]), log_p_tab, log_h_tab, n_tab, &n_nearest) + p_at_h_DM(hhDM + h,enthalpy_min, eos_typeDM, m_chi, y_chi));
+            a4=dr_is_dr(r_is+h*a3, sqrt(r2+h*b3), m + h*c3 + mDM + h*c3DM)*dr2_dh(r2 + h*b3, m + h*c3 + mDM + h*c3DM, p_at_h(hh + h,pow(10.0,log_h_tab[1]), log_p_tab, log_h_tab, n_tab, &n_nearest) + p_at_h_DM(hhDM + h,enthalpy_min, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_h_tabDM, n_tabDM, &n_nearestDM))/2.0/sqrt(r2+h*b3);
+            b4=dr2_dh(r2+h*b3, m+h*c3+mDM+h*c3DM, p_at_h(hh + h,pow(10.0,log_h_tab[1]), log_p_tab, log_h_tab, n_tab, &n_nearest) + p_at_h_DM(hhDM + h,enthalpy_min, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_h_tabDM, n_tabDM, &n_nearestDM));
             
             if(hh+h>enthalpy_min){
                 c4=dm_dh(r2+h*b3, m+h*c3, p_at_h(hh + h,pow(10.0,log_h_tab[1]), log_p_tab, log_h_tab, n_tab, &n_nearest), e_at_h(hh + h,pow(10.0,log_h_tab[1]), log_e_tab, log_h_tab, n_tab, &n_nearest));
             }
             if(hhDM+h>enthalpy_min){
-                c4DM=dm_dh(r2+h*b3, mDM+h*c3DM, p_at_h_DM(hhDM + h,enthalpy_min, eos_typeDM, m_chi, y_chi), e_at_h_DM(hhDM + h,enthalpy_min, eos_typeDM, m_chi, y_chi));
+                c4DM=dm_dh(r2+h*b3, mDM+h*c3DM, p_at_h_DM(hhDM + h,enthalpy_min, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_h_tabDM, n_tabDM, &n_nearestDM), e_at_h_DM(hhDM + h,enthalpy_min, eos_typeDM, m_chi, y_chi, x_centerDM, log_e_tabDM, log_h_tabDM, n_tabDM, &n_nearestDM));
             }
             
             
@@ -1715,7 +1979,7 @@ void TOV_enthalpy(
      hhDM += h;
         
     p = p_at_h(hh,pow(10.0,log_h_tab[1]), log_p_tab, log_h_tab, n_tab, &n_nearest);
-    pDM = p_at_h_DM(hhDM,enthalpy_min, eos_typeDM, m_chi, y_chi);
+    pDM = p_at_h_DM(hhDM,enthalpy_min, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_h_tabDM, n_tabDM, &n_nearestDM);
         
     printf("%lf, %lf, %lf, %lf, %lf, %lf, %lf, %lf \n", hh, hhDM, sqrt(r2)*sqrt(KAPPA)*1e-5, r_is*sqrt(KAPPA)*1e-5, m, mDM, (m + mDM)/(pow(r2, 3.0/2.0)), 1.0 - 2.0*(m + mDM)/sqrt(r2));
 
@@ -1780,8 +2044,8 @@ void TOV_enthalpy(
       hh=0.0;
     }
     else{
-      p=p_at_e_DM(e_d_gpDM[i], e_surfaceDM, eos_typeDM, m_chi, y_chi);
-      hh=h_at_p_DM(p, p_surfaceDM, eos_typeDM, m_chi, y_chi);
+      p=p_at_e_DM(e_d_gpDM[i], e_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
+      hh=h_at_p_DM(p, p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_h_tabDM, log_p_tabDM, n_tabDM, &n_nearestDM);
     }
     nu_gp[i]=nu_s-hh;
       }
@@ -1830,11 +2094,18 @@ void TOV_r(
                int    n_tab,
                double r_is_gp[RDIV+1],
                double lambda_gp[RDIV+1],
-               char   eos_typeDM[1],
+               char   eos_typeDM[80],
                double m_chi,
                double y_chi,
+           double log_e_tabDM[2001],
+           double log_p_tabDM[2001],
+           double log_h_tabDM[2001],
+           double log_n0_tabDM[2001],
+           int n_tabDM,
+           double Gamma_PDM,
                double e_centerDM,
                double p_centerDM,
+           double x_centerDM,
                double p_surfaceDM,
                double e_surfaceDM,
                double nu_gp[RDIV+1],
@@ -1913,25 +2184,26 @@ void TOV_r(
     
     double RBM,RDM,RBMis,RDMis=0.0;
     n_nearest = n_tab/2;
+    n_nearestDM = n_tabDM/2;
     r_is_gp[1]=0.0;
     r_gp[1]=0.0;
     m_gp[1]=0.0;
     m_gpDM[1]=0.0;
     lambda_gp[1]=0.0;
     e_d_gp[1] = e_at_p(p_center,p_surface, log_e_tab, log_p_tab, n_tab, &n_nearest, eos_type, Gamma_P);
-    e_d_gpDM[1] = e_at_p_DM(p_centerDM,p_surfaceDM, eos_typeDM, m_chi, y_chi);
+    e_d_gpDM[1] = e_at_p_DM(p_centerDM,p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
     p_d_gp[1] =p;
     p_d_gpDM[1] = pDM;
     enthalpy_gp[1] = h_at_p(p_center,p_surface, log_h_tab, log_p_tab, n_tab, &n_nearest);
-    enthalpy_gpDM[1] = h_at_p_DM(p_centerDM,p_surfaceDM, eos_typeDM, m_chi, y_chi);
+    enthalpy_gpDM[1] = h_at_p_DM(p_centerDM,p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_h_tabDM, log_p_tabDM, n_tabDM, &n_nearestDM);
     
     //    printf("TOV: icheck=%d central enthalpy = %lf  dark central enthalpy = %lf \n", i_check, enthalpy_gp[1], enthalpy_gpDM[1]);
     
     
     printf("TOV_r: P_B_c_cgs_found = %.12e  P_D_c_cgs_found = %.12e \n", p_center*C*C*C*C/(G*KAPPA), p_centerDM*C*C*C*C/(G*KAPPA));
     printf("TOV_r: Correct epsilon_B_c_cgs = %.12e  Correct epsilon_D_c_cgs = %.12e \n", e_center*C*C/(G*KAPPA), e_centerDM*C*C/(G*KAPPA));
-    printf("TOV_r: epsilon_B_c_cgs found = %.12e  epsilon_D_c_cgs found = %.12e \n", e_at_p(p,p_surface, log_e_tab, log_p_tab, n_tab, &n_nearest, eos_type, Gamma_P)*C*C/(G*KAPPA), e_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi)*C*C/(G*KAPPA));
-    printf("TOV_r: epsilon_B_c relative error = %.12e  epsilon_D_c relative error = %.12e \n", fabs(e_center - e_at_p(p,p_surface, log_e_tab, log_p_tab, n_tab, &n_nearest, eos_type, Gamma_P))/e_center, fabs(e_centerDM - e_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi))/e_centerDM);
+    printf("TOV_r: epsilon_B_c_cgs found = %.12e  epsilon_D_c_cgs found = %.12e \n", e_at_p(p,p_surface, log_e_tab, log_p_tab, n_tab, &n_nearest, eos_type, Gamma_P)*C*C/(G*KAPPA), e_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM)*C*C/(G*KAPPA));
+    printf("TOV_r: epsilon_B_c relative error = %.12e  epsilon_D_c relative error = %.12e \n", fabs(e_center - e_at_p(p,p_surface, log_e_tab, log_p_tab, n_tab, &n_nearest, eos_type, Gamma_P))/e_center, fabs(e_centerDM - e_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM))/e_centerDM);
     printf("TOV_r: h_B_c_cgs = %.12e  h_D_c_cgs = %.12e \n", enthalpy_gp[1]*C*C, enthalpy_gpDM[1]*C*C);
     printf("TOV_r: p_surf_cgs = %lf  p_surfDM = %lf \n", p_surface*C*C*C*C/(KAPPA*G), p_surfaceDM*C*C*C*C/(KAPPA*G));
     
@@ -1939,7 +2211,7 @@ void TOV_r(
         
         e_d = e_at_p(p,p_surface, log_e_tab, log_p_tab, n_tab, &n_nearest, eos_type,
                      Gamma_P);
-        e_dDM = e_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi);
+        e_dDM = e_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
         if((i_check<=3) && (r>r_check) && (i<=RDIV)) {
             r_is_gp[i]=r_is;
             r_gp[i]=r;
@@ -1965,9 +2237,15 @@ void TOV_r(
             }
             
             enthalpy_gp[i] = h_at_p(p,p_surface, log_h_tab, log_p_tab, n_tab, &n_nearest);
-            enthalpy_gpDM[i] = h_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi);
+            enthalpy_gpDM[i] = h_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_h_tabDM, log_p_tabDM, n_tabDM, &n_nearestDM);
+            
+//            printf("r_gp = %lf \n", r_gp[i]*sqrt(KAPPA)*1e-5);
+//            printf("p_gp = %lf \n", p_d_gp[i]);
+//            printf("p_gpDM = %lf \n", p_d_gpDM[i]);
+            
+//            if (i < RDIV)
+//                printf("i=%d r_is=%lf enth_B=%lf enth_D=%lf \n", i, r_is_gp[i],enthalpy_gp[i],enthalpy_gpDM[i]);
         
-//            
 //            i++;
 //            r_check += dr_save;
         }
@@ -1992,6 +2270,14 @@ void TOV_r(
             (*m_final)=m;
             (*mDM_final)=mDM;
             
+            //        if(i_check==3)
+            //        {
+            //            printf("r = %.12e \n", r*sqrt(KAPPA)*1e-5);
+            //            printf("p = %.12e \n", p);//%.12e
+            //            printf("pDM = %.12e \n", pDM);
+            //            printf("************* \n");
+            //        }
+            
             
             a1=dr_is_dr(r_is,r,m+mDM);
             
@@ -2003,8 +2289,8 @@ void TOV_r(
             }
             
             if(pDM>=p_surfaceDM){
-                b1DM=dm_dr_DM(r_is,r,m+mDM,pDM, e_centerDM, p_surfaceDM, eos_typeDM, m_chi, y_chi);
-                c1DM=dp_dr_DM(r_is,r,m+mDM,pDM,p, e_centerDM, e_center, p_surfaceDM, eos_typeDM, m_chi, y_chi);
+                b1DM=dm_dr_DM(r_is,r,m+mDM,pDM, e_centerDM, p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
+                c1DM=dp_dr_DM(r_is,r,m+mDM,pDM,p, e_centerDM, e_center, p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
             }
             
             
@@ -2025,10 +2311,10 @@ void TOV_r(
             }
             if(pDM+h*c1DM/2.0>=p_surfaceDM){
                 b2DM=dm_dr_DM(r_is+h*a1/2.0, r+h/2.0, m+h*b1/2.0+mDM+h*b1DM/2.0, pDM+h*c1DM/2.0, e_centerDM,
-                              p_surfaceDM, eos_typeDM, m_chi, y_chi);
+                              p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
                 
                 c2DM=dp_dr_DM(r_is+h*a1/2.0, r+h/2.0, m+h*b1/2.0+mDM+h*b1DM/2.0,
-                              pDM+h*c1DM/2.0, p+h*c1/2.0, e_centerDM, e_center, p_surfaceDM, eos_typeDM, m_chi, y_chi);
+                              pDM+h*c1DM/2.0, p+h*c1/2.0, e_centerDM, e_center, p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
             } else
             {
                 b2DM=mDM;
@@ -2055,10 +2341,10 @@ void TOV_r(
             
             if(pDM+h*c2DM/2.0>=p_surfaceDM){
                 b3DM=dm_dr_DM(r_is+h*a2/2.0, r+h/2.0, m+h*b2/2.0+mDM+h*b2DM/2.0, pDM+h*c2DM/2.0, e_centerDM,
-                              p_surfaceDM, eos_typeDM, m_chi, y_chi);
+                              p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
                 
                 c3DM=dp_dr_DM(r_is+h*a2/2.0, r+h/2.0, m+h*b2/2.0+mDM+h*b2DM/2.0, pDM+h*c2DM/2.0, p+h*c2/2.0, e_centerDM, e_center,
-                              p_surfaceDM, eos_typeDM, m_chi, y_chi);
+                              p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
             } else
             {
                 b3DM=mDM;
@@ -2082,10 +2368,10 @@ void TOV_r(
             }
             if(pDM+h*c3DM>=p_surfaceDM){
                 b4DM=dm_dr_DM(r_is+h*a3, r+h, m+h*b3+mDM+h*b3DM, pDM+h*c3DM, e_centerDM, p_surfaceDM,
-                              eos_typeDM, m_chi, y_chi);
+                              eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
                 
                 c4DM=dp_dr_DM(r_is+h*a3, r+h, m+h*b3+mDM+h*b3DM, pDM+h*c3DM,p+h*c3, e_centerDM, e_center, p_surfaceDM,
-                              eos_typeDM, m_chi, y_chi);
+                              eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
             } else
             {
                 b4DM=mDM;
@@ -2102,6 +2388,12 @@ void TOV_r(
                 p += (h/6.0)*(c1+2.*c2+2.*c3+c4);
                 m += (h/6.0)*(b1+2.*b2+2.*b3+b4);
             }
+            //     if((p+(h/6.0)*(c1+2.*c2+2.*c3+c4))>=p_surface){
+            //       p += (h/6.0)*(c1+2.*c2+2.*c3+c4);
+            //       m += (h/6.0)*(b1+2.*b2+2.*b3+b4);
+            //     }else{
+            //       p=0.0;
+            //     }
             
             if(pDM+h*c1DM/2.0<p_surfaceDM || pDM+h*c2DM/2.0<p_surfaceDM || pDM+h*c3DM<p_surfaceDM || (pDM+(h/6.0)*(c1DM+2.*c2DM+2.*c3DM+c4DM))<p_surfaceDM){
                 pDM=0.0;
@@ -2110,6 +2402,12 @@ void TOV_r(
                 pDM += (h/6.0)*(c1DM+2.*c2DM+2.*c3DM+c4DM);
                 mDM += (h/6.0)*(b1DM+2.*b2DM+2.*b3DM+b4DM);
             }
+            //     if((pDM+(h/6.0)*(c1DM+2.*c2DM+2.*c3DM+c4DM))>=p_surfaceDM){
+            //       pDM += (h/6.0)*(c1DM+2.*c2DM+2.*c3DM+c4DM);
+            //       mDM += (h/6.0)*(b1DM+2.*b2DM+2.*b3DM+b4DM);
+            //     }else{
+            //       pDM=0.0;
+            //     }
             
             
             r += h;
@@ -2117,6 +2415,12 @@ void TOV_r(
         }
         
         
+        
+        //    printf("r_gp[-1] = %lf \n", r_gp[sizeof(r_gp)/sizeof(r_gp[0]) - 1]*sqrt(KAPPA)*1e-5);
+        //    printf("r_gp[-1] = %lf \n", r_gp[sizeof(r_gp)/sizeof(r_gp[0]) - 1]*sqrt(KAPPA)*1e-5);
+        //    printf("enthalpy_gpDM[-1] = %lf \n", enthalpy_gpDM[sizeof(enthalpy_gpDM)/sizeof(enthalpy_gpDM[0]) - 20]);
+        //      printf("TOV: icheck=%d r_B_is = %lf \n", i_check, RBMis);
+        //      printf("TOV: icheck=%d r_B = %lf \n", i_check, RBM);
         
         // Interpolate to find the surface
         enthalpy_min = 1.0/(C*C);
@@ -2177,8 +2481,8 @@ void TOV_r(
                     hh=0.0;
                 }
                 else{
-                    p=p_at_e_DM(e_d_gpDM[i], e_surfaceDM, eos_typeDM, m_chi, y_chi);
-                    hh=h_at_p_DM(p, p_surfaceDM, eos_typeDM, m_chi, y_chi);
+                    p=p_at_e_DM(e_d_gpDM[i], e_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
+                    hh=h_at_p_DM(p, p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_h_tabDM, log_p_tabDM, n_tabDM, &n_nearestDM);
                 }
                 nu_gp[i]=nu_s-hh;
             }
@@ -2208,42 +2512,49 @@ void TOV_r(
         
         printf(" \n" );
         //    }
-    }
+}
 
 
 /*C*/
 /************************************************************************/
 void TOV(
-	       int    i_check, 
-               char   eos_type[],
-               double e_center,
-               double p_center,
-               double p_surface,
-               double e_surface,
-               double Gamma_P, 
-               double log_e_tab[2001],
-               double log_p_tab[2001],
-               double log_n0_tab[2001],
-               double log_h_tab[2001],
-               int    n_tab,
-               double r_is_gp[RDIV+1], 
-               double lambda_gp[RDIV+1], 
-               char   eos_typeDM[1],
-               double m_chi,
-               double y_chi,
-               double e_centerDM,
-               double p_centerDM,
-               double p_surfaceDM,
-               double e_surfaceDM,
-               double nu_gp[RDIV+1],
-	       double enthalpy_gp[RDIV+1],
-	       double enthalpy_gpDM[RDIV+1],
-               double *r_is_final, 
-               double *r_final, 
-               double *m_final,
-               double *rDM_is_final, 
-               double *rDM_final, 
-               double *mDM_final,
+         int i_check,
+         char eos_type[],
+         double e_center,
+         double p_center,
+         double p_surface,
+         double e_surface,
+         double Gamma_P,
+         double log_e_tab[2001],
+         double log_p_tab[2001],
+         double log_n0_tab[2001],
+         double log_h_tab[2001],
+         int n_tab,
+         double r_is_gp[RDIV+1],
+         double lambda_gp[RDIV+1],
+         char eos_typeDM[80],
+         double m_chi,
+         double y_chi,
+         double log_e_tabDM[2001],
+         double log_p_tabDM[2001],
+         double log_h_tabDM[2001],
+         double log_n0_tabDM[2001],
+         int n_tabDM,
+         double Gamma_PDM,
+         double e_centerDM,
+         double p_centerDM,
+         double x_centerDM,
+         double p_surfaceDM,
+         double e_surfaceDM,
+         double nu_gp[RDIV+1],
+         double enthalpy_gp[RDIV+1],
+         double enthalpy_gpDM[RDIV+1],
+         double *r_is_final,
+         double *r_final,
+         double *m_final,
+         double *rDM_is_final,
+         double *rDM_final,
+         double *mDM_final,
          double *mDM_RB_final)
 {
   int i=2,
@@ -2252,9 +2563,9 @@ void TOV(
 
   double r,                           /* radius */
          r_is,                        /* isotropic radial coordinate */
-         r_is_est,                    /* estimate on final isotr. radius */ 
-         r_is_check,                  /*                      */    
-         dr_is_save,                  /* r_is saving interval */  
+         r_is_est,                    /* estimate on final isotr. radius */
+         r_is_check,                  /*                      */
+         dr_is_save,                  /* r_is saving interval */
          rho0,
          e_d,                         /* density */
          p,                           /* pressure */
@@ -2270,7 +2581,7 @@ void TOV(
          c1,c2,c3,c4,
          a1DM,a2DM,a3DM,a4DM,b1DM,b2DM,b3DM,b4DM,     /* coeff. in Runge-Kutta equations */
          c1DM,c2DM,c3DM,c4DM,
-         k_rescale, 
+         k_rescale,
          r_gp[RDIV+1],
          m_gp[RDIV+1],
          e_d_gp[RDIV+1],
@@ -2281,7 +2592,7 @@ void TOV(
     
   double enthalpy_min;
   enthalpy_min = 1.0/(C*C);
-
+    
   // SMM: Add enthalpy vectors
   // double enthalpy_gp[RDIV+1],
   //enthalpy_gpDM[RDIV+1];
@@ -2293,17 +2604,17 @@ void TOV(
       h=r_is_est/10000.0;
     }
     else {
-          r_is_est= max(*rDM_is_final,*r_is_final);
-          h=r_is_est/100000.0;
-      	  dr_is_save = max(*rDM_is_final,*r_is_final)/RDIV;
-    	  r_is_check = dr_is_save;
-	 }
+        r_is_est= max(*rDM_is_final,*r_is_final);
+        h=r_is_est/100000.0;
+        dr_is_save = max(*rDM_is_final,*r_is_final)/RDIV;
+        r_is_check = dr_is_save;
+    }
 
     // Initialize variables at centre of star
     r_is=0.0;                            /* initial isotropic radius */
     r=0.0;                               /* initial radius */
     m=0.0;                               /* initial mass */
-    p=p_center;                          /* initial pressure */ 
+    p=p_center;                          /* initial pressure */
     mDM=0.0;
     pDM=p_centerDM;
 
@@ -2312,26 +2623,18 @@ void TOV(
     double m_RB_final = 0.0;
     *mDM_RB_final = 0.0;
     n_nearest = n_tab/2;
+    n_nearestDM = n_tabDM/2;
     r_is_gp[1]=0.0;
     r_gp[1]=0.0;
     m_gp[1]=0.0;
     m_gpDM[1]=0.0;
     lambda_gp[1]=0.0;
     e_d_gp[1] = e_at_p(p_center,p_surface, log_e_tab, log_p_tab, n_tab, &n_nearest, eos_type, Gamma_P);
-    e_d_gpDM[1] = e_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi);
-    
-  // test for files not existing.
-//  if (out_file == NULL)
-//    {
-//      printf("Error! Could not open file\n");
-//      exit(-1); // must include stdlib.h
-//    }
-    
+    e_d_gpDM[1] = e_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
     p_d_gp[1] =p;
     p_d_gpDM[1] = pDM;
-    
     enthalpy_gp[1] = h_at_p(p_center,p_surface, log_h_tab, log_p_tab, n_tab, &n_nearest);
-    enthalpy_gpDM[1] = h_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi);
+    enthalpy_gpDM[1] = h_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_h_tabDM, log_p_tabDM, n_tabDM, &n_nearestDM);
 
 //    printf("TOV: icheck=%d central enthalpy = %lf  dark central enthalpy = %lf \n", i_check, enthalpy_gp[1], enthalpy_gpDM[1]);
     if(i_check==1)
@@ -2342,186 +2645,197 @@ void TOV(
     printf("TOV: p_surf_cgs = %lf  p_surfDM = %lf \n", p_surface*C*C*C*C/(KAPPA*G), p_surfaceDM*C*C*C*C/(KAPPA*G));
 
     while ( (p>=p_surface) || (pDM>=p_surfaceDM) ) {
- 
-      e_d = e_at_p(p,p_surface, log_e_tab, log_p_tab, n_tab, &n_nearest, eos_type, 
-                                                                    Gamma_P);
-      e_dDM = e_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi);
-     if((i_check<=3) && (r_is>r_is_check) && (i<=RDIV)) {
-      r_is_gp[i]=r_is;
-      r_gp[i]=r;
-      if((p>=p_surface)){
-        m_gp[i]=m;
-        e_d_gp[i]=e_d;
-        p_d_gp[i]=p;
-      }else{
-        m_gp[i]=0.0;
-        e_d_gp[i]=0.0;
-        p_d_gp[i]=0.0;
-	//enthalpy_gp[i] = 0.0;
-      } 
-      if((pDM>=p_surfaceDM)){
-        m_gpDM[i]=mDM;
-        e_d_gpDM[i]=e_dDM; 
-        p_d_gpDM[i]=pDM;
-      }else{
-        m_gpDM[i]=0.0;
-        e_d_gpDM[i]=0.0;       
-        p_d_gpDM[i]=0.0;
-	//enthalpy_gpDM[i] = 0.0;
-      }
-
-      enthalpy_gp[i] = h_at_p(p,p_surface, log_h_tab, log_p_tab, n_tab, &n_nearest);
-      enthalpy_gpDM[i] = h_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi);
-      
-      i++;   
-      r_is_check += dr_is_save;     
-     }    
-
-     
-     
-
-     if((p>=p_surface)){
-       RBM=r;
-       RBMis=r_is;
-       (*r_is_final)=r_is;
-       (*r_final)=r;
-         m_RB_final = m;
-         *mDM_RB_final = mDM;
-       b_index = i-1;
-     }
-     if((pDM>=p_surfaceDM)){
-      RDM=r;
-      RDMis=r_is;
-      (*rDM_is_final)=r_is;
-      (*rDM_final)=r;
-      d_index = i-1;
-     }
-     (*m_final)=m;
-     (*mDM_final)=mDM;
-
- 
-     a1=dr_dr_is(r_is,r,m+mDM);
-     
-     if(p>=p_surface){
-       b1=dm_dr_is(r_is,r,m+mDM,p, e_center, p_surface, log_e_tab, log_p_tab, n_tab,
-                                                &n_nearest, eos_type, Gamma_P);
-       c1=dp_dr_is(r_is,r,m+mDM,p,pDM, e_center, e_centerDM, p_surface, log_e_tab, log_p_tab, n_tab,
-                                                &n_nearest, eos_type, Gamma_P);
-     }
-
-     if(pDM>=p_surfaceDM){
-       b1DM=dm_dr_is_DM(r_is,r,m+mDM,pDM, e_centerDM, p_surfaceDM, eos_typeDM, m_chi, y_chi);
-       c1DM=dp_dr_is_DM(r_is,r,m+mDM,pDM,p, e_centerDM, e_center, p_surfaceDM, eos_typeDM, m_chi, y_chi);
-     }
-
-     
-     a2=dr_dr_is(r_is+h/2.0, r+h*a1/2.0, m+h*b1/2.0+mDM+h*b1DM/2.0);
-
-     if(p+h*c1/2.0>=p_surface){
-       b2=dm_dr_is(r_is+h/2.0, r+h*a1/2.0, m+h*b1/2.0+mDM+h*b1DM/2.0, p+h*c1/2.0, e_center,
-                          p_surface, log_e_tab, log_p_tab, n_tab,&n_nearest, 
-                          eos_type, Gamma_P);
-
-       c2=dp_dr_is(r_is+h/2.0, r+h*a1/2.0, m+h*b1/2.0+mDM+h*b1DM/2.0, p+h*c1/2.0, pDM+h*c1DM/2.0, e_center, e_centerDM,
-                          p_surface, log_e_tab, log_p_tab, n_tab,&n_nearest,
-                          eos_type, Gamma_P);
-     } else
-     {
-         b2=m;
-         c2=0.0;
-     }
-     if(pDM+h*c1DM/2.0>=p_surfaceDM){
-       b2DM=dm_dr_is_DM(r_is+h/2.0, r+h*a1/2.0, m+h*b1/2.0+mDM+h*b1DM/2.0, pDM+h*c1DM/2.0, e_centerDM,
-                          p_surfaceDM, eos_typeDM, m_chi, y_chi);
-
-       c2DM=dp_dr_is_DM(r_is+h/2.0, r+h*a1/2.0, m+h*b1/2.0+mDM+h*b1DM/2.0,
-		     pDM+h*c1DM/2.0, p+h*c1/2.0, e_centerDM, e_center, p_surfaceDM, eos_typeDM, m_chi, y_chi);
-     } else
-     {
-         b2DM=mDM;
-         c2DM=0.0;
-     }
-                          
-
-     a3=dr_dr_is(r_is+h/2.0, r+h*a2/2.0, m+h*b2/2.0+ mDM+h*b2DM/2.0);
-     
-     if(p+h*c2/2.0>=p_surface){
-       b3=dm_dr_is(r_is+h/2.0, r+h*a2/2.0, m+h*b2/2.0+ mDM+h*b2DM/2.0, p+h*c2/2.0, e_center,
-                          p_surface, log_e_tab, log_p_tab, n_tab,&n_nearest, 
-                          eos_type, Gamma_P);
-
-       c3=dp_dr_is(r_is+h/2.0, r+h*a2/2.0, m+h*b2/2.0+ mDM+h*b2DM/2.0, p+h*c2/2.0, pDM+h*c2DM/2.0, e_center, e_centerDM,
-                          p_surface, log_e_tab, log_p_tab, n_tab,&n_nearest,
-                          eos_type, Gamma_P);
-     } else
-     {
-         b3=m;
-         c3=0.0;
-     }
-     
-     
-     if(pDM+h*c2DM/2.0>=p_surfaceDM){
-       b3DM=dm_dr_is_DM(r_is+h/2.0, r+h*a2/2.0, m+h*b2/2.0+ mDM+h*b2DM/2.0, pDM+h*c2DM/2.0, e_centerDM,
-                          p_surfaceDM, eos_typeDM, m_chi, y_chi);
-
-       c3DM=dp_dr_is_DM(r_is+h/2.0, r+h*a2/2.0, m+h*b2/2.0+ mDM+h*b2DM/2.0, pDM+h*c2DM/2.0, p+h*c2/2.0, e_centerDM, e_center,
-                          p_surfaceDM, eos_typeDM, m_chi, y_chi);
-     } else
-     {
-         b3DM=mDM;
-         c3DM=0.0;
-     }
-
-     a4=dr_dr_is(r_is+h, r+h*a3, m+h*b3+mDM+h*b3DM);
-
-     if(p+h*c3>=p_surface){
-       b4=dm_dr_is(r_is+h, r+h*a3, m+h*b3+mDM+h*b3DM, p+h*c3, e_center, p_surface,
-                                log_e_tab, log_p_tab, n_tab,&n_nearest, 
-                                eos_type, Gamma_P);
-
-       c4=dp_dr_is(r_is+h, r+h*a3, m+h*b3+mDM+h*b3DM, p+h*c3,pDM+h*c3DM, e_center, e_centerDM, p_surface,
-                                log_e_tab, log_p_tab, n_tab,&n_nearest,
-                                eos_type, Gamma_P);
-     } else
-     {
-         b4=m;
-         c4=0.0;
-     }
-     if(pDM+h*c3DM>=p_surfaceDM){
-       b4DM=dm_dr_is_DM(r_is+h, r+h*a3, m+h*b3+mDM+h*b3DM, pDM+h*c3DM, e_centerDM, p_surfaceDM,
-                        eos_typeDM, m_chi, y_chi);
-
-       c4DM=dp_dr_is_DM(r_is+h, r+h*a3, m+h*b3+mDM+h*b3DM, pDM+h*c3DM,p+h*c3, e_centerDM, e_center, p_surfaceDM,
-                        eos_typeDM, m_chi, y_chi);
-     } else
-     {
-         b4DM=mDM;
-         c4DM=0.0;
-     }
-
-     
-          
-     r += (h/6.0)*(a1+2.*a2+2.*a3+a4);
-     if(p+h*c1/2.0<p_surface || p+h*c2/2.0<p_surface || p+h*c3<p_surface || (p+(h/6.0)*(c1+2.*c2+2.*c3+c4))<p_surface){
-         p=0.0;
-           m=m;
-       }else{
-           p += (h/6.0)*(c1+2.*c2+2.*c3+c4);
-           m += (h/6.0)*(b1+2.*b2+2.*b3+b4);
-       }
+        
+        e_d = e_at_p(p,p_surface, log_e_tab, log_p_tab, n_tab, &n_nearest, eos_type, Gamma_P);
+        e_dDM = e_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
+        if((i_check<=3) && (r_is>r_is_check) && (i<=RDIV)) {
+            r_is_gp[i]=r_is;
+            r_gp[i]=r;
+            if((p>=p_surface)){
+                m_gp[i]=m;
+                e_d_gp[i]=e_d;
+                p_d_gp[i]=p;
+            }else{
+                m_gp[i]=0.0;
+                e_d_gp[i]=0.0;
+                p_d_gp[i]=0.0;
+                //enthalpy_gp[i] = 0.0;
+            }
+            if((pDM>=p_surfaceDM)){
+                m_gpDM[i]=mDM;
+                e_d_gpDM[i]=e_dDM;
+                p_d_gpDM[i]=pDM;
+            }else{
+                m_gpDM[i]=0.0;
+                e_d_gpDM[i]=0.0;
+                p_d_gpDM[i]=0.0;
+                //enthalpy_gpDM[i] = 0.0;
+            }
+            
+            enthalpy_gp[i] = h_at_p(p,p_surface, log_h_tab, log_p_tab, n_tab, &n_nearest);
+            enthalpy_gpDM[i] = h_at_p_DM(pDM,p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_h_tabDM, log_p_tabDM, n_tabDM, &n_nearestDM);
+            
+            //         printf("r_gp = %lf \n", r_gp[i]*sqrt(KAPPA)*1e-5);
+            //         printf("p_gp = %lf \n", p_d_gp[i]);
+            //         printf("p_gpDM = %lf \n", p_d_gpDM[i]);
+            
+            //       if (i < RDIV)
+            //      printf("i=%d r_is=%lf enth_B=%lf enth_D=%lf \n", i, r_is_gp[i],enthalpy_gp[i],enthalpy_gpDM[i]);
+            
+            i++;
+            r_is_check += dr_is_save;
+        }
+        
+        
+        
+        
+        if((p>=p_surface)){
+            RBM=r;
+            RBMis=r_is;
+            (*r_is_final)=r_is;
+            (*r_final)=r;
+            m_RB_final = m;
+            *mDM_RB_final = mDM;
+            b_index = i-1;
+        }
+        if((pDM>=p_surfaceDM)){
+            RDM=r;
+            RDMis=r_is;
+            (*rDM_is_final)=r_is;
+            (*rDM_final)=r;
+            d_index = i-1;
+        }
+        (*m_final)=m;
+        (*mDM_final)=mDM;
+        
+        //        printf("RDM = %lf \n", RDM*sqrt(KAPPA)*1e-5);
+        //        printf("p = %.12e \n", p);
+        //        printf("pDM = %.12e \n", pDM);
+        
+        
+        a1=dr_dr_is(r_is,r,m+mDM);
+        
+        if(p>=p_surface){
+            b1=dm_dr_is(r_is,r,m+mDM,p, e_center, p_surface, log_e_tab, log_p_tab, n_tab, &n_nearest, eos_type, Gamma_P);
+            c1=dp_dr_is(r_is,r,m+mDM,p,pDM, e_center, e_centerDM, p_surface, log_e_tab, log_p_tab, n_tab, &n_nearest, eos_type, Gamma_P);
+        }
+        
+        if(pDM>=p_surfaceDM){
+            b1DM=dm_dr_is_DM(r_is,r,m+mDM,pDM, e_centerDM, p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
+            c1DM=dp_dr_is_DM(r_is,r,m+mDM,pDM,p, e_centerDM, e_center, p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
+        }
+        
+        
+        a2=dr_dr_is(r_is+h/2.0, r+h*a1/2.0, m+h*b1/2.0+mDM+h*b1DM/2.0);
+        
+        if(p+h*c1/2.0>=p_surface){
+            b2=dm_dr_is(r_is+h/2.0, r+h*a1/2.0, m+h*b1/2.0+mDM+h*b1DM/2.0, p+h*c1/2.0, e_center, p_surface, log_e_tab, log_p_tab, n_tab,&n_nearest, eos_type, Gamma_P);
+            
+            c2=dp_dr_is(r_is+h/2.0, r+h*a1/2.0, m+h*b1/2.0+mDM+h*b1DM/2.0, p+h*c1/2.0, pDM+h*c1DM/2.0, e_center, e_centerDM,
+                        p_surface, log_e_tab, log_p_tab, n_tab,&n_nearest,
+                        eos_type, Gamma_P);
+        } else
+        {
+            b2=m;
+            c2=0.0;
+        }
+        if(pDM+h*c1DM/2.0>=p_surfaceDM){
+            b2DM=dm_dr_is_DM(r_is+h/2.0, r+h*a1/2.0, m+h*b1/2.0+mDM+h*b1DM/2.0, pDM+h*c1DM/2.0, e_centerDM, p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
+            
+            c2DM=dp_dr_is_DM(r_is+h/2.0, r+h*a1/2.0, m+h*b1/2.0+mDM+h*b1DM/2.0, pDM+h*c1DM/2.0, p+h*c1/2.0, e_centerDM, e_center, p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
+        } else
+        {
+            b2DM=mDM;
+            c2DM=0.0;
+        }
+        
+        
+        a3=dr_dr_is(r_is+h/2.0, r+h*a2/2.0, m+h*b2/2.0+ mDM+h*b2DM/2.0);
+        
+        if(p+h*c2/2.0>=p_surface){
+            b3=dm_dr_is(r_is+h/2.0, r+h*a2/2.0, m+h*b2/2.0+ mDM+h*b2DM/2.0, p+h*c2/2.0, e_center, p_surface, log_e_tab, log_p_tab, n_tab,&n_nearest, eos_type, Gamma_P);
+            
+            c3=dp_dr_is(r_is+h/2.0, r+h*a2/2.0, m+h*b2/2.0+ mDM+h*b2DM/2.0, p+h*c2/2.0, pDM+h*c2DM/2.0, e_center, e_centerDM, p_surface, log_e_tab, log_p_tab, n_tab,&n_nearest, eos_type, Gamma_P);
+        } else
+        {
+            b3=m;
+            c3=0.0;
+        }
+        
+        
+        if(pDM+h*c2DM/2.0>=p_surfaceDM){
+            b3DM=dm_dr_is_DM(r_is+h/2.0, r+h*a2/2.0, m+h*b2/2.0+ mDM+h*b2DM/2.0, pDM+h*c2DM/2.0, e_centerDM, p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
+            
+            c3DM=dp_dr_is_DM(r_is+h/2.0, r+h*a2/2.0, m+h*b2/2.0+ mDM+h*b2DM/2.0, pDM+h*c2DM/2.0, p+h*c2/2.0, e_centerDM, e_center, p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
+        } else
+        {
+            b3DM=mDM;
+            c3DM=0.0;
+        }
+        
+        a4=dr_dr_is(r_is+h, r+h*a3, m+h*b3+mDM+h*b3DM);
+        
+        if(p+h*c3>=p_surface){
+            b4=dm_dr_is(r_is+h, r+h*a3, m+h*b3+mDM+h*b3DM, p+h*c3, e_center, p_surface, log_e_tab, log_p_tab, n_tab,&n_nearest, eos_type, Gamma_P);
+            
+            c4=dp_dr_is(r_is+h, r+h*a3, m+h*b3+mDM+h*b3DM, p+h*c3,pDM+h*c3DM, e_center, e_centerDM, p_surface, log_e_tab, log_p_tab, n_tab,&n_nearest, eos_type, Gamma_P);
+        } else
+        {
+            b4=m;
+            c4=0.0;
+        }
+        if(pDM+h*c3DM>=p_surfaceDM){
+            b4DM=dm_dr_is_DM(r_is+h, r+h*a3, m+h*b3+mDM+h*b3DM, pDM+h*c3DM, e_centerDM, p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
+            
+            c4DM=dp_dr_is_DM(r_is+h, r+h*a3, m+h*b3+mDM+h*b3DM, pDM+h*c3DM,p+h*c3, e_centerDM, e_center, p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
+        } else
+        {
+            b4DM=mDM;
+            c4DM=0.0;
+        }
+        
+        
+        
+        r += (h/6.0)*(a1+2.*a2+2.*a3+a4);
+        if(p+h*c1/2.0<p_surface || p+h*c2/2.0<p_surface || p+h*c3<p_surface || (p+(h/6.0)*(c1+2.*c2+2.*c3+c4))<p_surface){
+            p=0.0;
+            m=m;
+        }else{
+            p += (h/6.0)*(c1+2.*c2+2.*c3+c4);
+            m += (h/6.0)*(b1+2.*b2+2.*b3+b4);
+        }
+        //     if((p+(h/6.0)*(c1+2.*c2+2.*c3+c4))>=p_surface){
+        //       p += (h/6.0)*(c1+2.*c2+2.*c3+c4);
+        //       m += (h/6.0)*(b1+2.*b2+2.*b3+b4);
+        //     }else{
+        //       p=0.0;
+        //     }
         
         if(pDM+h*c1DM/2.0<p_surfaceDM || pDM+h*c2DM/2.0<p_surfaceDM || pDM+h*c3DM<p_surfaceDM || (pDM+(h/6.0)*(c1DM+2.*c2DM+2.*c3DM+c4DM))<p_surfaceDM){
             pDM=0.0;
-              mDM=mDM;
+            mDM=mDM;
         }else{
             pDM += (h/6.0)*(c1DM+2.*c2DM+2.*c3DM+c4DM);
             mDM += (h/6.0)*(b1DM+2.*b2DM+2.*b3DM+b4DM);
         }
-
-     
-     r_is += h;
-
+        //     if((pDM+(h/6.0)*(c1DM+2.*c2DM+2.*c3DM+c4DM))>=p_surfaceDM){
+        //       pDM += (h/6.0)*(c1DM+2.*c2DM+2.*c3DM+c4DM);
+        //       mDM += (h/6.0)*(b1DM+2.*b2DM+2.*b3DM+b4DM);
+        //     }else{
+        //       pDM=0.0;
+        //     }
+        
+        
+        r_is += h;
     }
+    
+    
+    
+//    printf("r_gp[-1] = %lf \n", r_gp[sizeof(r_gp)/sizeof(r_gp[0]) - 1]*sqrt(KAPPA)*1e-5);
+//    printf("r_gp[-1] = %lf \n", r_gp[sizeof(r_gp)/sizeof(r_gp[0]) - 1]*sqrt(KAPPA)*1e-5);
+//    printf("enthalpy_gpDM[-1] = %lf \n", enthalpy_gpDM[sizeof(enthalpy_gpDM)/sizeof(enthalpy_gpDM[0]) - 20]);
+//      printf("TOV: icheck=%d r_B_is = %lf \n", i_check, RBMis);
+//      printf("TOV: icheck=%d r_B = %lf \n", i_check, RBM);
     
     // Interpolate to find the surface
 //    enthalpy_min = 1.0/(C*C);
@@ -2562,58 +2876,52 @@ void TOV(
 /* Rescale r_is and compute lambda */
 
     if(i_check==3) {
-      k_rescale=0.5*(r_gp[RDIV]/r_is_gp[RDIV])*(1.0-(*m_final+*mDM_final)/r_gp[RDIV]+
-                sqrt(1.0-2.0*(*m_final+*mDM_final)/r_gp[RDIV]));
- 
-      (*r_is_final) *= k_rescale;
-      (*rDM_is_final) *= k_rescale;
-       
-      nu_s = log((1.0-(*m_final+*mDM_final)/(2.0*r_is_gp[RDIV]*k_rescale))/(1.0+(*m_final+*mDM_final)/
-									    (2.0*r_is_gp[RDIV]*k_rescale)));      
-      for(i=1;i<=RDIV;i++) {
-	r_is_gp[i] *= k_rescale;
- 
-	if(i==1){ 
-	  lambda_gp[1]= log(1.0/k_rescale);
-         }
-	else {lambda_gp[i]=log(r_gp[i]/r_is_gp[i]); }
-
-	if(((e_d_gp[i]+e_d_gpDM[i])<(e_surfaceDM+e_surface))){
-	  hh=0.0;          
-	}
-	else{ 
-        p = p_at_e(e_d_gp[i], e_surface, log_p_tab, log_e_tab, n_tab, &n_nearest);
-        pDM = p_at_e_DM(e_d_gpDM[i], e_surfaceDM, eos_typeDM, m_chi, y_chi);
-        hh = h_at_p( p, p_surface, log_h_tab, log_p_tab, n_tab, &n_nearest) + h_at_p_DM(pDM, p_surfaceDM, eos_typeDM, m_chi, y_chi);
-//        hh = h_at_p_DM(pDM, p_surfaceDM, eos_typeDM, m_chi, y_chi);
-	}
-	nu_gp[i]=nu_s-hh;
-      }
-      nu_gp[RDIV]=nu_s;
+        k_rescale=0.5*(r_gp[RDIV]/r_is_gp[RDIV])*(1.0-(*m_final+*mDM_final)/r_gp[RDIV]+
+                                                  sqrt(1.0-2.0*(*m_final+*mDM_final)/r_gp[RDIV]));
+        
+        (*r_is_final) *= k_rescale;
+        (*rDM_is_final) *= k_rescale;
+        
+        nu_s = log((1.0-(*m_final+*mDM_final)/(2.0*r_is_gp[RDIV]*k_rescale))/(1.0+(*m_final+*mDM_final)/(2.0*r_is_gp[RDIV]*k_rescale)));
+        for(i=1;i<=RDIV;i++) {
+            r_is_gp[i] *= k_rescale;
+            
+            if(i==1){
+                lambda_gp[1]= log(1.0/k_rescale);
+            }
+            else {lambda_gp[i]=log(r_gp[i]/r_is_gp[i]); }
+            
+            if(((e_d_gp[i]+e_d_gpDM[i])<(e_surfaceDM+e_surface))){
+                hh=0.0;
+            }
+            else{
+                p = p_at_e(e_d_gp[i], e_surface, log_p_tab, log_e_tab, n_tab, &n_nearest);
+                pDM = p_at_e_DM(e_d_gpDM[i], e_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
+                hh = h_at_p( p, p_surface, log_h_tab, log_p_tab, n_tab, &n_nearest) + h_at_p_DM(pDM, p_surfaceDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_h_tabDM, log_p_tabDM, n_tabDM, &n_nearestDM);
+                //        hh = h_at_p_DM(pDM, p_surfaceDM, eos_typeDM, m_chi, y_chi);
+            }
+            nu_gp[i]=nu_s-hh;
+        }
+        nu_gp[RDIV]=nu_s;
     }
 //    if(i_check==3) {
       printf(" \n" );
       printf("TOV: RK4 for non-rotating NS \n" );
 
 
-      printf("R_iso = %lf ,       RD_iso = %lf\n",
-	     *r_is_final*sqrt(KAPPA)*1e-5,  *rDM_is_final*sqrt(KAPPA)*1e-5 );
+      printf("R_iso = %lf ,       RD_iso = %lf\n", *r_is_final*sqrt(KAPPA)*1e-5,  *rDM_is_final*sqrt(KAPPA)*1e-5 );
       printf("R_sh  = %lf,        RD_sh  = %lf \n", *r_final*sqrt(KAPPA)*1e-5, *rDM_final*sqrt(KAPPA)*1e-5);
-      printf("M     = %lf,        MD     = %lf \n",
-	     *m_final*sqrt(KAPPA)*C*C/(G*MSUN), *mDM_final*sqrt(KAPPA)*C*C/(G*MSUN));
-      printf("M_tot = %lf \n",
-	     (*m_final + *mDM_final)*sqrt(KAPPA)*C*C/(G*MSUN));
-    printf("M(RB)     = %lf,        MD(RB)     = %lf \n",
-       m_RB_final*sqrt(KAPPA)*C*C/(G*MSUN), *mDM_RB_final*sqrt(KAPPA)*C*C/(G*MSUN));
-    printf("M_tot(RB) = %lf \n",
-       (m_RB_final + *mDM_RB_final)*sqrt(KAPPA)*C*C/(G*MSUN));
+      printf("M     = %lf,        MD     = %lf \n", *m_final*sqrt(KAPPA)*C*C/(G*MSUN), *mDM_final*sqrt(KAPPA)*C*C/(G*MSUN));
+      printf("M_tot = %lf \n", (*m_final + *mDM_final)*sqrt(KAPPA)*C*C/(G*MSUN));
+    printf("M(RB)     = %lf,        MD(RB)     = %lf \n", m_RB_final*sqrt(KAPPA)*C*C/(G*MSUN), *mDM_RB_final*sqrt(KAPPA)*C*C/(G*MSUN));
+    printf("M_tot(RB) = %lf \n", (m_RB_final + *mDM_RB_final)*sqrt(KAPPA)*C*C/(G*MSUN));
 
       
       printf("GM/Rc^2 = %lf (At RD) \n", (*m_final+*mDM_final)/max(*r_final,*rDM_final));
       
       //printf("GM/R_isoc^2 = %lf (At RD) \n", (*m_final+*mDM_final)/(*rDM_is_final));
-	    // printf("radius at RD = %lf \n", *rDM_is_final*sqrt(KAPPA)*1e-5 *
-	    //pow( 1 + 0.5 * (*m_final+*mDM_final)/(*rDM_is_final), 2));
+    // printf("radius at RD = %lf \n", *rDM_is_final*sqrt(KAPPA)*1e-5 *
+    //pow( 1 + 0.5 * (*m_final+*mDM_final)/(*rDM_is_final), 2));
 
 
     
@@ -2623,35 +2931,42 @@ void TOV(
 
 /*C*/
 /*************************************************************************/
-void sphere(double s_gp[SDIV+1], 
-	    double log_e_tab[2001], 
-	    double log_p_tab[2001], 
-	    double log_h_tab[2001],
-	    double log_n0_tab[2001], 
-	    int n_tab,                 
-	    char eos_type[],
-	    double Gamma_P, 
-	    double e_center,
-	    double p_center, 
-	    double h_center,
-	    double p_surface,
-	    double e_surface,
-	    char eos_typeDM[1],
-        double m_chi,
-        double y_chi,
-	    double e_centerDM,
-	    double p_centerDM, 
-	    double h_centerDM,
-	    double p_surfaceDM,
-	    double e_surfaceDM,
-	    double **rho,
-	    double **gama,
-	    double **alpha,
-	    double **omega,
-	    double **enthalpy,
-	    double **enthalpyDM,
-	    double *r_e,
-	    double *r_eDM)
+void sphere(double s_gp[SDIV+1],
+            double log_e_tab[2001],
+            double log_p_tab[2001],
+            double log_h_tab[2001],
+            double log_n0_tab[2001],
+            int n_tab,
+            char eos_type[],
+            double Gamma_P,
+            double e_center,
+            double p_center,
+            double h_center,
+            double p_surface,
+            double e_surface,
+            char eos_typeDM[80],
+            double m_chi,
+            double y_chi,
+            double log_e_tabDM[2001],
+            double log_p_tabDM[2001],
+            double log_h_tabDM[2001],
+            double log_n0_tabDM[2001],
+            int n_tabDM,
+            double Gamma_PDM,
+            double e_centerDM,
+            double p_centerDM,
+            double h_centerDM,
+            double x_centerDM,
+            double p_surfaceDM,
+            double e_surfaceDM,
+            double **rho,
+            double **gama,
+            double **alpha,
+            double **omega,
+            double **enthalpy,
+            double **enthalpyDM,
+            double *r_e,
+            double *r_eDM)
 
 {
  int s,
@@ -2660,10 +2975,10 @@ void sphere(double s_gp[SDIV+1],
 
  double r_is_s,
    r_is_final,
-   r_final, 
+   r_final,
    m_final,
    rDM_is_final,
-   rDM_final, 
+   rDM_final,
    mDM_final,
     mDM_RB_final,
    lambda_s,
@@ -2692,47 +3007,47 @@ void sphere(double s_gp[SDIV+1],
 
  
  /* The function TOV integrates the TOV equations. The function
-	can be found in the file equil.c */
+    can be found in the file equil.c */
     
 //    TOV_r(1, eos_type, e_center, p_center, p_surface, e_surface, Gamma_P,
 //        log_e_tab, log_p_tab,log_n0_tab, log_h_tab, n_tab, r_is_gp, lambda_gp,
-//        eos_typeDM, m_chi, y_chi, e_centerDM, p_centerDM, p_surfaceDM, e_surfaceDM,
+//        eos_typeDM, m_chi, y_chi, e_centerDM, p_centerDM, x_centerDM, p_surfaceDM, e_surfaceDM,
 //        nu_gp, enthalpy_gp, enthalpy_gpDM,
 //        &r_is_final, &r_final, &m_final,&rDM_is_final, &rDM_final, &mDM_final);
 //
 //    TOV_r(2, eos_type, e_center, p_center, p_surface, e_surface, Gamma_P,
 //        log_e_tab, log_p_tab,log_n0_tab, log_h_tab, n_tab, r_is_gp, lambda_gp,
-//        eos_typeDM, m_chi, y_chi, e_centerDM, p_centerDM, p_surfaceDM, e_surfaceDM,
+//        eos_typeDM, m_chi, y_chi, e_centerDM, p_centerDM, x_centerDM, p_surfaceDM, e_surfaceDM,
 //        nu_gp,  enthalpy_gp, enthalpy_gpDM,
 //        &r_is_final, &r_final, &m_final,&rDM_is_final, &rDM_final , &mDM_final);
-//                 
+//
 //    TOV_r(3, eos_type, e_center, p_center, p_surface, e_surface, Gamma_P,
 //        log_e_tab, log_p_tab,log_n0_tab, log_h_tab, n_tab, r_is_gp, lambda_gp,
-//        eos_typeDM, m_chi, y_chi, e_centerDM, p_centerDM, p_surfaceDM, e_surfaceDM,
+//        eos_typeDM, m_chi, y_chi, e_centerDM, p_centerDM, x_centerDM, p_surfaceDM, e_surfaceDM,
 //        nu_gp, enthalpy_gp, enthalpy_gpDM,
 //        &r_is_final, &r_final, &m_final,&rDM_is_final, &rDM_final , &mDM_final);
 
  TOV(1, eos_type, e_center, p_center, p_surface, e_surface, Gamma_P,
-     log_e_tab, log_p_tab,log_n0_tab, log_h_tab, n_tab, r_is_gp, lambda_gp, 
-     eos_typeDM, m_chi, y_chi, e_centerDM, p_centerDM, p_surfaceDM, e_surfaceDM,
+     log_e_tab, log_p_tab,log_n0_tab, log_h_tab, n_tab, r_is_gp, lambda_gp,
+     eos_typeDM, m_chi, y_chi, log_e_tabDM, log_p_tabDM, log_h_tabDM, log_n0_tabDM, n_tabDM, Gamma_PDM, e_centerDM, p_centerDM, x_centerDM, p_surfaceDM, e_surfaceDM,
      nu_gp, enthalpy_gp, enthalpy_gpDM,
      &r_is_final, &r_final, &m_final,&rDM_is_final, &rDM_final, &mDM_final, &mDM_RB_final);
 
  TOV(2, eos_type, e_center, p_center, p_surface, e_surface, Gamma_P,
-     log_e_tab, log_p_tab,log_n0_tab, log_h_tab, n_tab, r_is_gp, lambda_gp, 
-     eos_typeDM, m_chi, y_chi, e_centerDM, p_centerDM, p_surfaceDM, e_surfaceDM,
+     log_e_tab, log_p_tab,log_n0_tab, log_h_tab, n_tab, r_is_gp, lambda_gp,
+     eos_typeDM, m_chi, y_chi, log_e_tabDM, log_p_tabDM, log_h_tabDM, log_n0_tabDM, n_tabDM, Gamma_PDM, e_centerDM, p_centerDM, x_centerDM, p_surfaceDM, e_surfaceDM,
      nu_gp,  enthalpy_gp, enthalpy_gpDM,
      &r_is_final, &r_final, &m_final,&rDM_is_final, &rDM_final , &mDM_final, &mDM_RB_final);
               
  TOV(3, eos_type, e_center, p_center, p_surface, e_surface, Gamma_P,
-     log_e_tab, log_p_tab,log_n0_tab, log_h_tab, n_tab, r_is_gp, lambda_gp, 
-     eos_typeDM, m_chi, y_chi, e_centerDM, p_centerDM, p_surfaceDM, e_surfaceDM,
+     log_e_tab, log_p_tab,log_n0_tab, log_h_tab, n_tab, r_is_gp, lambda_gp,
+     eos_typeDM, m_chi, y_chi, log_e_tabDM, log_p_tabDM, log_h_tabDM, log_n0_tabDM, n_tabDM, Gamma_PDM, e_centerDM, p_centerDM, x_centerDM, p_surfaceDM, e_surfaceDM,
      nu_gp, enthalpy_gp, enthalpy_gpDM,
      &r_is_final, &r_final, &m_final,&rDM_is_final, &rDM_final , &mDM_final, &mDM_RB_final);
     
 // TOV_enthalpy(1, eos_type, e_center, p_center, h_center, p_surface, e_surface, Gamma_P,
 //        log_e_tab, log_p_tab,log_n0_tab, log_h_tab, n_tab, r_is_gp, lambda_gp,
-//        eos_typeDM, m_chi, y_chi, e_centerDM, p_centerDM, h_centerDM, p_surfaceDM, e_surfaceDM,
+//        eos_typeDM, m_chi, y_chi, e_centerDM, p_centerDM, h_centerDM, x_centerDM, p_surfaceDM, e_surfaceDM,
 //        nu_gp, enthalpy_gp, enthalpy_gpDM,
 //        &r_is_final, &r_final, &m_final,&rDM_is_final, &rDM_final, &mDM_final);
 
@@ -2751,7 +3066,7 @@ void sphere(double s_gp[SDIV+1],
      case 2:
         r_out= ((r_final<=rDM_final)?r_final:rDM_final);
         r_is_out= ((r_is_final<=rDM_is_final)?r_is_final:rDM_is_final);
-        break; 
+        break;
      case 3:
         r_out= r_final;//((r_final>=rDM_final)?r_final:rDM_final);
         r_is_out= r_is_final;
@@ -2759,12 +3074,12 @@ void sphere(double s_gp[SDIV+1],
      case 4:
         r_out= rDM_final;//((r_final<=rDM_final)?r_final:rDM_final);
         r_is_out= rDM_is_final;
-        break;   
+        break;
      case 5:
         r_out= (r_final+rDM_final)/2.;
         r_is_out= (r_is_final+rDM_is_final)/2.;
-        break;    
-   }   
+        break;
+   }
 
  //output = fopen("enthalpy-sphere.txt","w");
  // fprintf(output,"#s r_is hB1 hB2 hD1 hD2 0.5*(gama+rho) error\n");
@@ -2779,7 +3094,7 @@ void sphere(double s_gp[SDIV+1],
       nu_s=interp(r_is_gp,nu_gp, RDIV,r_is_s,&n_nearest);
       enthalpy_s = interp(r_is_gp,enthalpy_gp,RDIV,r_is_s,&n_nearest);
       if (enthalpy_s < 0)
-	enthalpy_s = 0.0;
+          enthalpy_s = 0.0;
     }
     else {
       lambda_s=2.0*log(1.0+(m_final+mDM_final)/(2.0*r_is_s));
@@ -2808,19 +3123,19 @@ void sphere(double s_gp[SDIV+1],
       
     }
 
-    //   fprintf(output,"%d %lf %lf %lf %lf %lf %lf %6.5e\n", s, r_is_s,
-    //	    enthalpy_s, enthalpy[s][1], enthalpy_sDM, enthalpyDM[s][1],
-    //	    0.5*(gama[s][1]+rho[s][1]), 0.5*(gama[s][1]+rho[s][1]) - 0.5*(gama[1][1]+rho[1][1]) +  enthalpy[s][1] - h_center  );
+//     fprintf(output,"%d %lf %lf %lf %lf %lf %lf %6.5e\n", s, r_is_s,
+//             enthalpy_s, enthalpy[s][1], enthalpy_sDM, enthalpyDM[s][1],
+//             0.5*(gama[s][1]+rho[s][1]), 0.5*(gama[s][1]+rho[s][1]) - 0.5*(gama[1][1]+rho[1][1]) +  enthalpy[s][1] - h_center  );
     
-    for(m=1;m<=MDIV;m++) {
-        gama[s][m]=gama[s][1];        
-        rho[s][m]=rho[s][1];
-        alpha[s][m]=(gama[s][1]-rho[s][1])/2.0;
-        omega[s][m]=0.0;
-
-	enthalpy[s][m] = enthalpy[s][1];
-	enthalpyDM[s][m] = enthalpyDM[s][1];	
-    }
+     for(m=1;m<=MDIV;m++) {
+         gama[s][m]=gama[s][1];
+         rho[s][m]=rho[s][1];
+         alpha[s][m]=(gama[s][1]-rho[s][1])/2.0;
+         omega[s][m]=0.0;
+         
+         enthalpy[s][m] = enthalpy[s][1];
+         enthalpyDM[s][m] = enthalpyDM[s][1];
+     }
  
     gama_mu_0[s]=gama[s][1];                   /* gama at \mu=0 */
     rho_mu_0[s]=rho[s][1];                     /* rho at \mu=0 */
@@ -2837,14 +3152,13 @@ void sphere(double s_gp[SDIV+1],
    rho_eq = interp(s_gp,rho_mu_0,SDIV,s_e,&n_nearest);   /* rho at equator */
    double h_eq = interp(s_gp,enthalpy_sp,SDIV,s_e,&n_nearest); /* enthalpy at equator */
 
-   // printf("Sphere: Version 1: Error in HSE = %6.5e    h_eq=%6.5e \n",
-   //	  0.5*(gama_eq+rho_eq) - 0.5*(gama[1][1]+rho[1][1]) + h_eq - h_center, h_eq);
+//    printf("Sphere: Version 1: Error in HSE = %6.5e    h_eq=%6.5e \n", 0.5*(gama_eq+rho_eq) - 0.5*(gama[1][1]+rho[1][1]) + h_eq - h_center, h_eq);
 
    
    double gama_eqDM = interp(s_gp,gama_mu_0,SDIV,s_eDM,&n_nearestDM); /* gama at equator */
    double rho_eqDM = interp(s_gp,rho_mu_0,SDIV,s_eDM,&n_nearestDM);   /* rho at equator */
 
-     (*r_e)= r_final*exp(0.5*(rho_eq-gama_eq)); 
+     (*r_e)= r_final*exp(0.5*(rho_eq-gama_eq));
      (*r_eDM)= rDM_final*exp(0.5*(rho_eqDM-gama_eqDM));
 
 
@@ -2869,8 +3183,7 @@ void sphere(double s_gp[SDIV+1],
      rho_eq = interp(r_is_sp,rho_mu_0,SDIV,*r_e,&n_nearest);   /* rho at equator */
      h_eq = interp(r_is_sp,enthalpy_sp,SDIV,*r_e,&n_nearest); /* enthalpy at equator */
 
-       printf("Sphere: Error in HSE = %6.5e    h_eqB=%6.5e \n",
-	  0.5*(gama_eq+rho_eq) - 0.5*(gama[1][1]+rho[1][1]) + h_eq - h_center, h_eq);
+       printf("Sphere: Error in HSE = %6.5e    h_eqB=%6.5e \n", 0.5*(gama_eq+rho_eq) - 0.5*(gama[1][1]+rho[1][1]) + h_eq - h_center, h_eq);
    
        //   fclose(output);
     
@@ -2882,43 +3195,51 @@ void sphere(double s_gp[SDIV+1],
 /* Main iteration cycle for computation of the rotating star's metric    */
 /*************************************************************************/
 void spin(double s_gp[SDIV+1],
-	  double mu[MDIV+1],
-	  double log_e_tab[2001], 
-	  double log_p_tab[2001], 
-	  double log_h_tab[2001],
-	  double log_n0_tab[2001], 
-	  int n_tab,                 
-	  char eos_type[],
-	  double Gamma_P, 
-	  double h_center,
-	  double enthalpy_min,
-	  char eos_typeDM[1],
-      double m_chi,
-      double y_chi,
-	  double h_centerDM,
-	  double enthalpy_minDM,
-	  double **rho,
-	  double **gama,
-	  double **alpha,
-	  double **omega,
-	  double **energy,
-	  double **pressure,
-	  double **enthalpy,
-	  double **velocity_sq,
-	  double **energyDM,
-	  double **pressureDM,
-	  double **enthalpyDM,
-	  double **velocity_sqDM,
+          double mu[MDIV+1],
+          double log_e_tab[2001],
+          double log_p_tab[2001],
+          double log_h_tab[2001],
+          double log_n0_tab[2001],
+          int n_tab,
+          char eos_type[],
+          double Gamma_P,
+          double h_center,
+          double enthalpy_min,
+          char eos_typeDM[80],
+          double m_chi,
+          double y_chi,
+          double log_e_tabDM[2001],
+          double log_p_tabDM[2001],
+          double log_h_tabDM[2001],
+          double log_n0_tabDM[2001],
+          int n_tabDM,
+          double Gamma_PDM,
+          double h_centerDM,
+          double x_centerDM,
+          double enthalpy_minDM,
+          double **rho,
+          double **gama,
+          double **alpha,
+          double **omega,
+          double **energy,
+          double **pressure,
+          double **enthalpy,
+          double **velocity_sq,
+          double **energyDM,
+          double **pressureDM,
+          double **enthalpyDM,
+          double **velocity_sqDM,
           double **Omega_hDM,
-	  int    a_check,
-	  double accuracy,
-	  double cf,
-	  double r_ratio,
-	  double r_ratioDM,
-	  double *r_e_new,
-	  double *rDM_e_new,
-	  double *Omega,
-  	  double *OmegaDM)
+          int a_check,
+          double accuracy,
+          double cf,
+          double r_ratio,
+          double r_ratioDM,
+          double *r_e_new,
+          double *rDM_e_new,
+          double *Omega,
+          double *OmegaDM,
+          double *mass_quadrupole,double *B0 )
 
  {
  int m,                      /* counter */
@@ -3369,8 +3690,6 @@ double   sum_rho=0.0,         /* intermediate sum in eqn for rho */
                    break;
                }
            }
-           
-           
            s_eDM_new = r_eDM/(r_eDM + r_out);
        } else
        {
@@ -3392,6 +3711,9 @@ double   sum_rho=0.0,         /* intermediate sum in eqn for rho */
       // Compute the value of the Dark enthalpy at the north pole of the baryonic surface
       dark_h_RBP = 0.5*( gama_pole_hDM+rho_pole_hDM - (gama_pole_h+rho_pole_h) )*SQ(r_out);
       // printf("Dark enthalpy at the NP of the Baryonic surface = %lf \n",dark_h_RBP);
+
+      // SMM
+      r_eDM0=sqrt(SQ(r_eDM_old)*2.0*( h_centerDM )/((gama_pole_hDM+rho_pole_hDM-gama_center_h-rho_center_h)*SQ(r_out)));
        
        
        // Since the euatorial baryonic fluid radius is the parameter used for convergence, Equation A28 Cook, Shapiro, T
@@ -3498,7 +3820,8 @@ double   sum_rho=0.0,         /* intermediate sum in eqn for rho */
 
       /* Compute velocity, energy density and pressure. */
       
-      n_nearest=n_tab/2; 
+      n_nearest=n_tab/2;
+       n_nearestDM=n_tabDM/2;
       
       for(s=1;s<=SDIV;s++) {
          sgp=s_gp[s];
@@ -3572,8 +3895,8 @@ double   sum_rho=0.0,         /* intermediate sum in eqn for rho */
 	    }
 	    
             else {
-                     pressureDM[s][m]=p_at_h_DM(enthalpyDM[s][m],enthalpy_minDM, eos_typeDM, m_chi, y_chi);
-                     energyDM[s][m]=e_at_p_DM(pressureDM[s][m],enthalpy_minDM, eos_typeDM, m_chi, y_chi);
+                pressureDM[s][m]=p_at_h_DM(enthalpyDM[s][m],enthalpy_minDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_h_tabDM, n_tabDM, &n_nearestDM);
+                energyDM[s][m]=e_at_p_DM(pressureDM[s][m],enthalpy_minDM, eos_typeDM, m_chi, y_chi, x_centerDM, log_p_tabDM, log_e_tabDM, n_tabDM, &n_nearestDM);
 	           }
 
            
@@ -4052,11 +4375,32 @@ double   sum_rho=0.0,         /* intermediate sum in eqn for rho */
     
     printf("Omega/(2pi) = %lf\n", *Omega/(2.0*PI));
     printf("OmegaDM/(2pi) = %lf\n", *OmegaDM/(2.0*PI));
+    
+    printf("R_eDM0 = %lf\n", r_eDM0*sqrt(KAPPA)*1e-5);
 
 
 //printf("%g %g %g %g\n",log(Omega_h), log(Omega_hDM), log(r_ratio),  log(r_ratioDM));
+    
+    double
+      r_infinity;
+
+     if(r_ratio!=1.0){/* Calculate the mass quadrupole moment */
+            
+       r_infinity = r_eq*s_gp[SDIV-1]/(1.0-s_gp[SDIV-1]);
+        /* Value of the coordinate r at infinity*/
+
+        (*mass_quadrupole) = - 0.5*pow(r_infinity,3)*D2_rho[SDIV-1][2];
+
+     }
+     else (*mass_quadrupole) = 0.0;
+
+            
+       r_infinity = r_eq*s_gp[SDIV-1]/(1.0-s_gp[SDIV-1]);
+        /* Value of the coordinate r at infinity*/
+        *B0=(exp(gama[SDIV-1][1])-1)*pow(sqrt(KAPPA)*r_infinity,2);
+    
     free_f3tensor(f_rho, 1,SDIV,1,LMAX+1,1,SDIV);
     free_f3tensor(f_gama,1,SDIV,1,LMAX+1,1,SDIV);
-    free_dmatrix(P_2n,   1,MDIV,1,LMAX+1);   
-    free_dmatrix(P1_2n_1,1,MDIV,1,LMAX+1);  
+    free_dmatrix(P_2n,   1,MDIV,1,LMAX+1);
+    free_dmatrix(P1_2n_1,1,MDIV,1,LMAX+1);
 }
