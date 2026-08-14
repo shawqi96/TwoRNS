@@ -17,10 +17,19 @@ typedef struct{
   double K;                   /*?*/
 } EOS;
 
-typedef struct{               
-  char eos_typeDM[1];          /*b for bosonic, f for fermionic*/
+typedef struct{
+  char eos_typeDM[80];          /*b for bosonic, f for fermionic, The name of the EOS file as stored on the computer for tabulated*/
   double m_chi;                /*DM particle mass*/
   double y_chi;                /*DM self-interaction strength*/
+    char data_dir[80];          /*The location the output legendre files are sent to*/
+    double log_e_tabDM[2001];      /*?*/
+    double log_p_tabDM[2001];      /*?*/
+    double log_h_tabDM[2001];      /*?*/
+    double log_n0_tabDM[2001];     /*?*/
+    int n_tabDM;                  /*?*/
+    double Gamma_PDM;             /*?*/
+    double BDM;                   /*?*/
+    double KDM;                   /*?*/
 } EOSDM;
 
 typedef struct {
@@ -43,19 +52,26 @@ typedef struct {
   double Mass_0;               /*In Solar Mass Units*/
   double Mass_0DM;               /*In Solar Mass Units*/
   double Mp;
+    double MpDM;
+    double Mp2;
+    double Mp2DM;
   double Vp;
+    double Zp;
+    double Zf;
+    double Zb;
   double r_ratio;              /*Ratio of polar to equatoral radius*/
   double r_ratioDM;              /*Ratio of polar to equatoral radius*/
   double e_center;             /*Energy Density at the center of the star*/
   double e_centerDM;             /*Energy Density at the center of the star*/
+    double x_centerDM;
   double p_center;             /*Pressure at the center of the star*/
-  double p_centerDM;             /*Pressure at the center of the star*/  
+  double p_centerDM;             /*Pressure at the center of the star*/
   double h_center;             /*Enthalpy at the center of the star*/
   double h_centerDM;             /*Enthalpy at the center of the star*/
   double e_surface;            /*Energy Density at the surface of the star*/
   double e_surfaceDM;            /*Energy Density at the surface of the star*/
   double enthalpy_min;         /*The minimum enthalpy, roughly zero, finds surface of the star*/
-  double enthalpy_minDM;         /*The minimum enthalpy, roughly zero, finds surface of the star*/  
+  double enthalpy_minDM;         /*The minimum enthalpy, roughly zero, finds surface of the star*/
   double r_e;                  /*Needed to convert from s to isotropic radius (unitless)*/
   double r_eDM;                  /*Needed to convert from s to isotropic radius (unitless)*/
   double R_e;                  /*Schwarzschild radial coordinate (unitless) */
@@ -65,7 +81,10 @@ typedef struct {
   double Omega;                /*The angular velocity of the star (radians per second)*/
   double OmegaDM;                /*The angular velocity of the star (radians per second)*/
   double Omega_K;              /**/
+    double mass_quadrupole;
+    double B0;
   double I;                    /*Moment of inertia of the star*/
+    double IDM;                    /*Moment of inertia of the star*/
   double Q;                    /*Quadrupole moment of the star*/
   double q;
   double zeta;                 /*Used in calculating the invariant quadrupole moment*/
