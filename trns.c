@@ -66,7 +66,7 @@ int main(int argc, char **argv)     /* Number of command line arguments, Command
 
   char eos_file[80] = "no EOS file specified";   /* EOS file name */
   char eos_type[80] = "tab";                     /* EOS type (poly or tab) */
-  char eos_typeDM[1] = "f";                     /* EOS type (b for bosonic, f for fermionic) */
+    char eos_typeDM[80] = "f";                     /* EOS type (b for bosonic, f for fermionic, EOS file name for tabulated) */
   char data_dir[80] = "junk";                    /* Data output directory */
   char filename[100] = "Many Fermion";
 
@@ -85,8 +85,10 @@ int main(int argc, char **argv)     /* Number of command line arguments, Command
 	break;
 	
       case 'd':
-	/* CHOOSE WHETHER THE DM IS BOSONIC OR
-       FERMIONIC: 'f' for fermionic, bosonic HAS NOT been implemented yet */
+              /* CHOOSE WHETHER THE DM IS BOSONIC OR
+                 FERMIONIC OR TABULATED: 'f' for fermionic, 'b' for bosonic,
+               IF A TABULATED EOS WAS CHOSEN, CHOOSE THE
+                  NAME OF THE FILE */
 	sscanf(argv[i+1],"%s",eos_typeDM);
 	break;
               
@@ -107,6 +109,7 @@ int main(int argc, char **argv)     /* Number of command line arguments, Command
 	sscanf(argv[i+1],"%lf",&e_min);
 	if(strcmp(eos_type,"poly")!=0)
 	  e_min *= 1.60218e-6*KSCALE/(1.0e-13*1.0e-13*1.0e-13);
+              printf("e_Bc_cgs = %.15e ", e_min*C*C/(KAPPA*G));
 	break;
 	
       case 'c':
@@ -188,12 +191,3 @@ int main(int argc, char **argv)     /* Number of command line arguments, Command
   fclose(fpointer);
   return 0;
 }
-
-
-
-
-
-
-
-
-
