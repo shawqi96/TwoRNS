@@ -103,12 +103,22 @@ int MakeSphere(EOS *eos,
   star->e_center = e_center;
  
  
-  star->e_surfaceDM=pow(10.,eos->log_e_tab[1]);
-//  star->e_surfaceDM=0.0;
-    p_surfaceDM=pow(10.,eos->log_p_tab[1]);
-    //  p_surfaceDM=pow(10.,eos->log_p_tab[1])-1.0*KSCALE;
-//  p_surfaceDM=0.0;
-  star->enthalpy_minDM=1.0/(C*C);
+    if((strcmp(eosDM->eos_typeDM, "b") == 0) || (strcmp(eosDM->eos_typeDM, "f") == 0))
+    {
+        star->e_surfaceDM=pow(10.,eos->log_e_tab[1]);
+    //  star->e_surfaceDM=0.0;
+        p_surfaceDM=pow(10.,eos->log_p_tab[1]);
+        //  p_surfaceDM=pow(10.,eos->log_p_tab[1])-1.0*KSCALE;
+    //  p_surfaceDM=0.0;
+    } else
+    {
+        star->e_surfaceDM=pow(10.,eosDM->log_e_tabDM[1]);
+    //  star->e_surfaceDM=0.0;
+        p_surfaceDM=pow(10.,eosDM->log_p_tabDM[1]);
+        //  p_surfaceDM=pow(10.,eosDM->log_p_tab[1])-1.0*KSCALE;
+    //  p_surfaceDM=0.0;
+    }
+    star->enthalpy_minDM=1.0/(C*C);
 
   // printf("MakeSphere: enthalpy_min = %6.5e log(hmin) = %lf \n",star->enthalpy_min, eos->log_h_tab[1]);
     star->e_centerDM = e_centerDM;
@@ -119,27 +129,27 @@ int MakeSphere(EOS *eos,
 	      eos->Gamma_P, 
 	      star->e_center, &star->p_center, &star->h_center,star->e_surface,p_surface);
     
-  make_centerDM(eosDM->eos_typeDM, eosDM->m_chi, eosDM->y_chi,
-	      star->e_centerDM, &star->p_centerDM, &star->h_centerDM,star->e_surfaceDM,p_surfaceDM);
+    make_centerDM(eosDM->eos_typeDM, eosDM->m_chi, eosDM->y_chi, eosDM->log_e_tabDM, eosDM->log_p_tabDM, eosDM->log_h_tabDM, eosDM->log_n0_tabDM, eosDM->n_tabDM, eosDM->Gamma_PDM,
+                  star->e_centerDM, &star->p_centerDM, &star->h_centerDM, &star->x_centerDM,star->e_surfaceDM,p_surfaceDM);
 
   // printf("Entered make_center: h_c = %lf  h_cDM = %lf \n", star->h_center, star->h_centerDM);
 
   
 
   /* COMPUTE A SPHERICAL STAR AS A FIRST GUESS FOR THE ROTATING STAR */
-
-  sphere( star->metric.s_gp, eos->log_e_tab, eos->log_p_tab, 
-	  eos->log_h_tab, eos->log_n0_tab, eos->n_tab, eos->eos_type, 
-	  eos->Gamma_P, 
-	  star->e_center, star->p_center, star->h_center, 
-	  p_surface, star->e_surface,
-      eosDM->eos_typeDM, eosDM->m_chi, eosDM->y_chi,
-	  star->e_centerDM, star->p_centerDM, star->h_centerDM,
-	  p_surfaceDM, star->e_surfaceDM,
-	  star->metric.rho, star->metric.gama, 
-	  star->metric.alpha, star->metric.omega,
-	  star->enthalpy, star->enthalpyDM,
-	  &star->r_e,&star->r_eDM);
+    
+    sphere( star->metric.s_gp, eos->log_e_tab, eos->log_p_tab,
+           eos->log_h_tab, eos->log_n0_tab, eos->n_tab, eos->eos_type,
+           eos->Gamma_P,
+           star->e_center, star->p_center, star->h_center,
+           p_surface, star->e_surface,
+           eosDM->eos_typeDM, eosDM->m_chi, eosDM->y_chi, eosDM->log_e_tabDM, eosDM->log_p_tabDM, eosDM->log_h_tabDM, eosDM->log_n0_tabDM, eosDM->n_tabDM, eosDM->Gamma_PDM,
+           star->e_centerDM, star->p_centerDM, star->h_centerDM, star->x_centerDM,
+           p_surfaceDM, star->e_surfaceDM,
+           star->metric.rho, star->metric.gama,
+           star->metric.alpha, star->metric.omega,
+           star->enthalpy, star->enthalpyDM,
+           &star->r_e,&star->r_eDM);
 
 
   //printf("Finished Sphere\n");
@@ -320,56 +330,56 @@ int rns(double r_ratio,
   //   printf("Before spin: Baryonic Radius = %lf Dark Radius = %lf \n", star->r_e*sqrt(KAPPA)*1e-5, star->r_eDM*sqrt(KAPPA)*1e-5);
  
 
-  spin(star->metric.s_gp, star->metric.mu, 
-       eos->log_e_tab, eos->log_p_tab, eos->log_h_tab, eos->log_n0_tab, 
-       eos->n_tab, eos->eos_type, eos->Gamma_P, 
-       star->h_center, star->enthalpy_min,
-       eosDM->eos_typeDM, eosDM->m_chi, eosDM->y_chi,
-       star->h_centerDM, star->enthalpy_minDM,
-       star->metric.rho, star->metric.gama, star->metric.alpha, star->metric.omega, 
-       star->energy, star->pressure, 
-       star->enthalpy, star->velocity_sq,
-       star->energyDM, star->pressureDM, 
-       star->enthalpyDM, star->velocity_sqDM, star->Omega_hDM,
-       a_check, accuracy, cf,
-       star->r_ratio, star->r_ratioDM, &star->r_e, &star->r_eDM, &star->Omega, &star->OmegaDM);
+    spin(star->metric.s_gp, star->metric.mu,
+         eos->log_e_tab, eos->log_p_tab, eos->log_h_tab, eos->log_n0_tab,
+         eos->n_tab, eos->eos_type, eos->Gamma_P,
+         star->h_center, star->enthalpy_min,
+         eosDM->eos_typeDM, eosDM->m_chi, eosDM->y_chi, eosDM->log_e_tabDM, eosDM->log_p_tabDM, eosDM->log_h_tabDM, eosDM->log_n0_tabDM, eosDM->n_tabDM, eosDM->Gamma_PDM,
+         star->h_centerDM, star->x_centerDM, star->enthalpy_minDM,
+         star->metric.rho, star->metric.gama, star->metric.alpha, star->metric.omega,
+         star->energy, star->pressure,
+         star->enthalpy, star->velocity_sq,
+         star->energyDM, star->pressureDM,
+         star->enthalpyDM, star->velocity_sqDM, star->Omega_hDM,
+         a_check, accuracy, cf,
+         star->r_ratio, star->r_ratioDM, &star->r_e, &star->r_eDM, &star->Omega, &star->OmegaDM, &star->mass_quadrupole, &star->B0);
   
 
   printf("After spin: Baryonic Radius = %lf Dark Radius = %lf \n", star->r_e*sqrt(KAPPA)*1e-5, star->r_eDM*sqrt(KAPPA)*1e-5);
-  
- 
-  mass_radius( star->metric.s_gp,
-	       star->metric.mu,
-	       eos->log_e_tab,
-	       eos->log_p_tab,
-	       eos->log_h_tab,
-	       eos->log_n0_tab, 
-	       eos->n_tab,
-	       eos->eos_type,
-	       eos->Gamma_P, 
-           eosDM->eos_typeDM,
-           eosDM->m_chi,
-           eosDM->y_chi,
-	       star->metric.rho,
-	       star->metric.gama, 
-	       star->metric.alpha,
-	       star->metric.omega, 
-	       star->energy,
-	       star->pressure, 
-	       star->enthalpy,
-	       star->velocity_sq,
-	       star->energyDM,
-	       star->pressureDM, 
-	       star->enthalpyDM,
-	       star->velocity_sqDM,
-           star->Omega_hDM,
-	       star->r_ratio,
-	       star->r_ratioDM,&star->Ratio_sch, star->e_center, star->e_centerDM, star->e_surface,
-	       star->e_surfaceDM, star->r_e, star->r_eDM, star->Omega, star->OmegaDM,
-	       &star->Mass, &star->Mass_0, &star->ang_mom, &star->R_e, 
-	       &star->MassDM, &star->Mass_0DM, &star->ang_momDM, &star->R_eDM, 
-	       star->v_plus, star->v_minus, 
-	       &star->Omega_K, &star->Vp, &star->Mp);
+    
+    
+    mass_radius( star->metric.s_gp,
+                star->metric.mu,
+                eos->log_e_tab,
+                eos->log_p_tab,
+                eos->log_h_tab,
+                eos->log_n0_tab,
+                eos->n_tab,
+                eos->eos_type,
+                eos->Gamma_P,
+                eosDM->eos_typeDM,
+                eosDM->m_chi,
+                eosDM->y_chi, eosDM->log_e_tabDM, eosDM->log_p_tabDM, eosDM->log_h_tabDM, eosDM->log_n0_tabDM, eosDM->n_tabDM, eosDM->Gamma_PDM,
+                star->metric.rho,
+                star->metric.gama,
+                star->metric.alpha,
+                star->metric.omega,
+                star->energy,
+                star->pressure,
+                star->enthalpy,
+                star->velocity_sq,
+                star->energyDM,
+                star->pressureDM,
+                star->enthalpyDM,
+                star->velocity_sqDM,
+                star->Omega_hDM,
+                star->r_ratio,
+                star->r_ratioDM,&star->Ratio_sch, star->e_center, star->e_centerDM, star->x_centerDM, star->e_surface,
+                star->e_surfaceDM, star->r_e, star->r_eDM, star->Omega, star->OmegaDM,
+                &star->Mass, &star->Mass_0, &star->ang_mom, &star->R_e,
+                &star->MassDM, &star->Mass_0DM, &star->ang_momDM, &star->R_eDM,
+                star->v_plus, star->v_minus,
+                &star->Omega_K, &star->Vp, &star->Mp, &star->MpDM, &star->Mp2, &star->Mp2DM, &star->Zp, &star->Zf, &star->Zb, &star->mass_quadrupole, &star->B0, &star->I, &star->IDM);
 
   for (m=1;m<=MDIV;m++)
     for (s=1;s<=SDIV;s++){
@@ -410,7 +420,7 @@ int SetUpStar( char eos_file[80],
 	       double K,
 	       EOS *eos,
 	       NeutronStar *star,
-           char eos_typeDM[1],
+           char eos_typeDM[80],
            double m_chi,
            double y_chi,
            EOSDM *eosDM,
@@ -456,23 +466,30 @@ int SetUpStar( char eos_file[80],
   sprintf(eos->data_dir,"%s",data_dir);
     
     
-  eos->Gamma_P = Gamma_P;
-  eos->B = B;
-  eos->K = K;
+    eos->Gamma_P = Gamma_P;
+    eos->B = B;
+    eos->K = K;
+    
+    /* LOAD TABULATED EOS */
+    if(strcmp(eos_type,"tab")==0)
+        load_eos( eos->eos_file, eos->log_e_tab, eos->log_p_tab,
+                 eos->log_h_tab, eos->log_n0_tab, &eos->n_tab );
     
     
-//  sprintf(eosDM->eos_typeDM,"%s",eos_typeDM);
+    sprintf(eosDM->eos_typeDM,"%s",eos_typeDM);
+    
+    if((strcmp(eos_typeDM, "b") == 0) || (strcmp(eos_typeDM, "f") == 0))
+    {
+        eosDM->m_chi = m_chi;
+        eosDM->y_chi = y_chi;
+    } else
+    {
+        load_eos( eosDM->eos_typeDM, eosDM->log_e_tabDM, eosDM->log_p_tabDM,
+                 eosDM->log_h_tabDM, eosDM->log_n0_tabDM, &eosDM->n_tabDM );
+    }
     
     
-  eosDM->m_chi = m_chi;
-  eosDM->y_chi = y_chi;
-
-  /* LOAD TABULATED EOS */ 
-  if(strcmp(eos_type,"tab")==0) 
-    load_eos( eos->eos_file, eos->log_e_tab, eos->log_p_tab, 
-	      eos->log_h_tab, eos->log_n0_tab, &eos->n_tab );
-
-  /* SET UP GRID */
+    /* SET UP GRID */
   make_grid(star->metric.s_gp, star->metric.mu);
 
 
